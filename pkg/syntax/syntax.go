@@ -18,9 +18,9 @@ type Style struct {
 
 // Token represents a syntax-highlighted token
 type Token struct {
-	Text  string
-	Color color.Color
-	Bold  bool
+	Text   string
+	Color  color.Color
+	Bold   bool
 	Italic bool
 }
 

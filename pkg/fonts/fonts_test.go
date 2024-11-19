@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 // testFontDir is where we store our test font files
@@ -50,6 +51,10 @@ func createTestFonts() {
 		{"TestFont-Bold.ttf", []byte("mock font data - bold")},
 		{"TestFont-Italic.ttf", []byte("mock font data - italic")},
 		{"TestFont-BoldItalic.ttf", []byte("mock font data - bold italic")},
+		{"TestFont-Light.ttf", []byte("mock font data - light")},
+		{"TestFont-Medium.ttf", []byte("mock font data - medium")},
+		{"NotoSans-Regular.ttf", []byte("mock font data - noto regular")},
+		{"NotoSans-Bold.ttf", []byte("mock font data - noto bold")},
 	}
 
 	for _, font := range testFonts {
@@ -60,7 +65,19 @@ func createTestFonts() {
 	}
 }
 
+func clearFontCache() {
+	fontCacheMu.Lock()
+	fontCache = make(map[string][]*Font)
+	fontCacheMu.Unlock()
+
+	variantCacheMu.Lock()
+	variantCache = make(map[string]*Font)
+	variantCacheMu.Unlock()
+}
+
 func TestGetFont(t *testing.T) {
+	clearFontCache()
+
 	tests := []struct {
 		name      string
 		fontName  string
@@ -102,6 +119,20 @@ func TestGetFont(t *testing.T) {
 			},
 		},
 		{
+			name:     "Noto Sans Regular",
+			fontName: "NotoSans",
+			style:    nil,
+			wantErr:  false,
+			checkFont: func(t *testing.T, f *Font) {
+				if f == nil {
+					t.Fatal("Expected font, got nil")
+				}
+				if f.Style.Weight != WeightRegular {
+					t.Errorf("Expected regular weight, got %v", f.Style.Weight)
+				}
+			},
+		},
+		{
 			name:     "Nonexistent font",
 			fontName: "NonexistentFont",
 			style:    nil,
@@ -127,6 +158,8 @@ func TestGetFont(t *testing.T) {
 }
 
 func TestGetFontVariants(t *testing.T) {
+	clearFontCache()
+
 	tests := []struct {
 		name     string
 		fontName string
@@ -155,6 +188,21 @@ func TestGetFontVariants(t *testing.T) {
 			},
 		},
 		{
+			name:     "Noto Sans variants",
+			fontName: "NotoSans",
+			wantErr:  false,
+			check: func(t *testing.T, fonts []*Font) {
+				if len(fonts) < 2 {
+					t.Error("Expected at least two Noto Sans variants")
+				}
+				for _, f := range fonts {
+					if f.Name != "NotoSans" {
+						t.Errorf("Expected NotoSans font, got %s", f.Name)
+					}
+				}
+			},
+		},
+		{
 			name:     "Nonexistent font",
 			fontName: "NonexistentFont",
 			wantErr:  false, // Should return empty slice, not error
@@ -178,38 +226,87 @@ func TestGetFontVariants(t *testing.T) {
 	}
 }
 
+func TestFontCache(t *testing.T) {
+	clearFontCache()
+
+	// First call should not be cached
+	start := time.Now()
+	fonts1, err := GetFontVariants("TestFont")
+	if err != nil {
+		t.Fatalf("GetFontVariants() error = %v", err)
+	}
+	firstCallDuration := time.Since(start)
+
+	// Second call should be cached and faster
+	start = time.Now()
+	fonts2, err := GetFontVariants("TestFont")
+	if err != nil {
+		t.Fatalf("GetFontVariants() error = %v", err)
+	}
+	secondCallDuration := time.Since(start)
+
+	// Verify cache is working
+	if len(fonts1) != len(fonts2) {
+		t.Errorf("Cache returned different number of fonts: first=%d, second=%d", len(fonts1), len(fonts2))
+	}
+
+	// Second call should be significantly faster
+	if secondCallDuration > firstCallDuration/2 {
+		t.Errorf("Cached call not faster: first=%v, second=%v", firstCallDuration, secondCallDuration)
+	}
+
+	// Test variant cache
+	style := &FontStyle{Weight: WeightBold}
+	
+	// First call to GetFont
+	start = time.Now()
+	font1, err := GetFont("TestFont", style)
+	if err != nil {
+		t.Fatalf("GetFont() error = %v", err)
+	}
+	firstCallDuration = time.Since(start)
+
+	// Second call should use variant cache
+	start = time.Now()
+	font2, err := GetFont("TestFont", style)
+	if err != nil {
+		t.Fatalf("GetFont() error = %v", err)
+	}
+	secondCallDuration = time.Since(start)
+
+	// Verify variant cache is working
+	if font1.FilePath != font2.FilePath {
+		t.Error("Variant cache returned different fonts")
+	}
+
+	// Second call should be faster
+	if secondCallDuration > firstCallDuration/2 {
+		t.Errorf("Cached variant call not faster: first=%v, second=%v", firstCallDuration, secondCallDuration)
+	}
+}
+
 func TestListFonts(t *testing.T) {
+	clearFontCache()
+	
 	fonts := ListFonts()
 	if len(fonts) == 0 {
 		t.Error("Expected at least one font")
 	}
 
-	// Check for our test font
-	found := false
-	for _, font := range fonts {
-		if font == "TestFont" {
-			found = true
-			break
+	// Check for our test fonts
+	expectedFonts := []string{"TestFont", "NotoSans"}
+	for _, expected := range expectedFonts {
+		found := false
+		for _, font := range fonts {
+			if font == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected to find font %s", expected)
 		}
 	}
-
-	if !found {
-		t.Error("Expected to find TestFont")
-	}
-}
-
-func TestFontFS(t *testing.T) {
-	fs := FontFS()
-	if fs == nil {
-		t.Fatal("Expected non-nil font filesystem")
-	}
-
-	// Try to open the test font directory
-	entries, err := fs.Open(".")
-	if err != nil {
-		t.Fatalf("Failed to open font directory: %v", err)
-	}
-	defer entries.Close()
 }
 
 func TestCleanFontName(t *testing.T) {

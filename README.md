@@ -25,7 +25,7 @@ Goshot is a powerful Go library and CLI tool for creating beautiful code screens
 go install github.com/watzon/goshot/cmd/goshot@latest
 
 # Install with bundled fonts
-go install -tags bundled github.com/watzon/goshot/cmd/goshot@latest
+go install -tags bundle_fonts github.com/watzon/goshot/cmd/goshot@latest
 ```
 
 ### Library
@@ -93,23 +93,27 @@ func main() {
 ```
 .
 ├── cmd/
-│   └── goshot/         # CLI implementation
+│   └── goshot/          # CLI implementation
 ├── pkg/
-│   ├── window/         # Window styling and rendering
-│   │   ├── chrome.go   # Window chrome rendering
-│   │   └── style.go    # Window styles (mac, windows, linux)
-│   ├── syntax/         # Syntax highlighting
+│   ├── window/          # Window styling and rendering
+│   │   ├── chrome.go    # Window chrome rendering
+│   │   └── style.go     # Window styles (mac, windows, linux)
+│   ├── syntax/          # Syntax highlighting
 │   │   ├── highlight.go # Code highlighting implementation
-│   │   └── theme.go    # Theme definitions and loading
-│   ├── background/     # Background processing
-│   │   ├── color.go    # Solid color backgrounds
-│   │   ├── gradient.go # Gradient backgrounds
-│   │   └── image.go    # Image backgrounds
-│   └── render/         # Final image composition
-│       ├── canvas.go   # Main rendering canvas
-│       └── export.go   # Export functionality
-├── examples/           # Example usage
-├── fonts/             # Bundled fonts
+│   │   └── theme.go     # Theme definitions and loading
+│   ├── background/      # Background processing
+│   │   ├── color.go     # Solid color backgrounds
+│   │   ├── gradient.go  # Gradient backgrounds
+│   │   └── image.go     # Image backgrounds
+│   ├── fonts/           # Font loading and management
+│   │   ├── fonts.go     # Core font functionality
+│   │   ├── fonts_bundled.go   # Bundled font support
+│   │   └── fonts_nobundled.go # Fallback for bundled fonts
+│   │   └── bundled/     # Bundled font files
+│   └── render/          # Final image composition
+│       ├── canvas.go    # Main rendering canvas
+│       └── export.go    # Export functionality
+├── examples/            # Example usage
 ├── go.mod
 ├── go.sum
 └── README.md
@@ -118,8 +122,9 @@ func main() {
 ## 🗺 Roadmap
 
 ### Phase 1: Core Functionality
-- [ ] Set up project structure and dependencies
-- [ ] Implement basic syntax highlighting using Chroma
+- ✅ Set up project structure and dependencies
+- ✅ Implement basic syntax highlighting using Chroma
+- ✅ Add font loading support, including bundled fonts
 - [ ] Create basic window chrome rendering
 - [ ] Implement solid color backgrounds
 - [ ] Add PNG export functionality
