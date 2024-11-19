@@ -3,107 +3,139 @@ package main
 import (
 	"fmt"
 	"image/color"
-	"image/png"
-	"os"
-	"path/filepath"
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/render"
 	"github.com/watzon/goshot/pkg/syntax"
 )
 
 func main() {
 	// Sample code to highlight
-	sampleCode := `package main
+	sampleCode := `package syntax
 
-import "fmt"
+import (
+	"bytes"
+	"fmt"
+	"image/color"
 
-func main() {
-    fmt.Println("Hello, World!")
+	"github.com/alecthomas/chroma"
+	"github.com/alecthomas/chroma/lexers"
+	"github.com/alecthomas/chroma/styles"
+)
+
+// Style represents a syntax highlighting style
+type Style struct {
+	Name  string
+	Style *chroma.Style
+}
+
+// Token represents a syntax-highlighted token
+type Token struct {
+	Text   string
+	Color  color.Color
+	Bold   bool
+	Italic bool
 }`
 
 	// Sample configurations
 	samples := []struct {
-		name     string
-		chrome   chrome.Chrome
-		darkMode bool
+		name   string
+		canvas *render.Canvas
 	}{
 		{
-			name:   "macOS Light",
-			chrome: chrome.NewMacOSChrome().SetTitle("My App"),
+			name: "dracula",
+			canvas: render.NewCanvas().
+				SetChrome(chrome.NewWindows11Chrome(chrome.WithTitle("My App"))).
+				SetBackground(
+					background.NewColorBackground().
+						SetColor(color.RGBA{R: 25, G: 25, B: 25, A: 255}).
+						SetPaddingValue(40),
+				).
+				SetSyntaxOptions(&syntax.HighlightOptions{
+					Style:        "dracula",
+					TabWidth:     4,
+					ShowLineNums: true,
+				}).
+				SetRenderConfig(
+					syntax.DefaultConfig().
+						SetShowLineNumbers(true).
+						SetStartLineNumber(3).
+						SetEndLineNumber(12),
+				),
 		},
 		{
-			name:     "macOS Dark",
-			chrome:   chrome.NewMacOSChrome().SetTitle("My App").SetDarkMode(true),
-			darkMode: true,
+			name: "catppuccin-mocha",
+			canvas: render.NewCanvas().
+				SetChrome(chrome.NewWindows11Chrome(
+					chrome.WithTitle("My App"),
+					chrome.WithDarkMode(true),
+				)).
+				SetBackground(
+					background.NewColorBackground().
+						SetColor(color.RGBA{R: 120, G: 120, B: 120, A: 255}).
+						SetPaddingValue(40),
+				).
+				SetSyntaxOptions(&syntax.HighlightOptions{
+					Style:        "catppuccin-mocha",
+					TabWidth:     4,
+					ShowLineNums: false,
+				}).
+				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(false)),
 		},
 		{
-			name:   "Windows 11 Light",
-			chrome: chrome.NewWindows11Chrome().SetTitle("My App"),
+			name: "catppuccin-latte",
+			canvas: render.NewCanvas().
+				SetChrome(chrome.NewWindows11Chrome(
+					chrome.WithTitle("My App"),
+					chrome.WithTitleBar(false),
+					chrome.WithCornerRadius(10),
+				)).
+				SetSyntaxOptions(&syntax.HighlightOptions{
+					Style:        "catppuccin-latte",
+					TabWidth:     4,
+					ShowLineNums: true,
+				}).
+				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(true)),
 		},
 		{
-			name:     "Windows 11 Dark",
-			chrome:   chrome.NewWindows11Chrome().SetTitle("My App").SetDarkMode(true),
-			darkMode: true,
+			name: "gruvbox",
+			canvas: render.NewCanvas().
+				SetChrome(chrome.NewWindows11Chrome(
+					chrome.WithTitle("My App"),
+					chrome.WithDarkMode(true),
+					chrome.WithTitleBar(false),
+				)).
+				SetBackground(
+					background.NewColorBackground().
+						SetColor(color.RGBA{R: 70, G: 70, B: 70, A: 255}).
+						SetPaddingValue(40),
+				).
+				SetSyntaxOptions(&syntax.HighlightOptions{
+					Style:        "gruvbox",
+					TabWidth:     4,
+					ShowLineNums: false,
+				}).
+				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(false)),
 		},
 	}
 
-	// Generate samples
+	// Process each sample
 	for _, sample := range samples {
-		// Highlight the code
-		highlighted, err := syntax.Highlight(sampleCode, "go", "monokai")
-		if err != nil {
-			fmt.Printf("Error highlighting code: %v\n", err)
-			continue
-		}
+		fmt.Printf("Processing %s style...\n", sample.name)
 
-		// Create render config with theme-appropriate colors
-		config := syntax.DefaultConfig()
-		if sample.darkMode {
-			config.LineNumberColor = color.RGBA{R: 128, G: 128, B: 128, A: 255}
-			config.LineNumberBg = color.RGBA{R: 40, G: 40, B: 40, A: 255}
-		} else {
-			config.LineNumberColor = color.RGBA{R: 128, G: 128, B: 128, A: 255}
-			config.LineNumberBg = color.RGBA{R: 245, G: 245, B: 245, A: 255}
-		}
-
-		// Create an image from the highlighted code
-		content, err := highlighted.RenderToImage(config)
+		// Render the code to an image
+		result, err := sample.canvas.RenderCode(sampleCode)
 		if err != nil {
 			fmt.Printf("Error rendering code: %v\n", err)
 			continue
 		}
 
-		// Render the chrome
-		bg := background.NewColorBackground()
-		// Use a lilac color for all themes
-		lilacColor := color.RGBA{R: 230, G: 220, B: 255, A: 255}
-		bg.SetColor(lilacColor)
-
-		result, err := sample.chrome.Render(content)
+		// Save the image
+		err = render.SaveAsPNG(result, fmt.Sprintf("output-%s.png", sample.name))
 		if err != nil {
-			fmt.Printf("Error rendering chrome: %v\n", err)
+			fmt.Printf("Error saving image: %v\n", err)
 			continue
-		}
-		result = bg.Apply(result)
-
-		// Save the result
-		outDir := "samples"
-		if err := os.MkdirAll(outDir, 0755); err != nil {
-			fmt.Printf("Error creating output directory: %v\n", err)
-			continue
-		}
-
-		outPath := filepath.Join(outDir, fmt.Sprintf("%s.png", sample.name))
-		f, err := os.Create(outPath)
-		if err != nil {
-			fmt.Printf("Error creating output file: %v\n", err)
-			continue
-		}
-		defer f.Close()
-
-		if err := png.Encode(f, result); err != nil {
-			fmt.Printf("Error encoding PNG: %v\n", err)
 		}
 	}
 }

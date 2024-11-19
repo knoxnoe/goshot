@@ -23,11 +23,11 @@ const (
 func DrawWindowBase(dc *gg.Context, width int, height int, cornerRadius float64, titleBackground, contentBackground color.Color, titleBarHeight int) error {
 	// Clear the background to transparent
 	dc.Clear()
-	
+
 	// Draw the rounded rectangle for clipping
 	dc.DrawRoundedRectangle(0, 0, float64(width), float64(height), cornerRadius)
 	dc.Clip()
-	
+
 	// Draw content background
 	dc.SetColor(contentBackground)
 	dc.DrawRectangle(0, 0, float64(width), float64(height))
@@ -42,45 +42,39 @@ func DrawWindowBase(dc *gg.Context, width int, height int, cornerRadius float64,
 }
 
 // DrawTitleText draws centered title text in the title bar
-func DrawTitleText(dc *gg.Context, title string, width, titleBarHeight int, textColor color.Color, fontSize float64) error {
+func DrawTitleText(dc *gg.Context, title string, width, titleBarHeight int, textColor color.Color, fontSize float64, fontName string) error {
 	// Draw text centered horizontally and vertically in the title bar
 	x := float64(width) / 2
 	y := float64(titleBarHeight) / 2
-	return drawTitleText(dc, title, x, y, fontSize, textColor)
+	return drawTitleText(dc, title, x, y, fontSize, textColor, fontName)
 }
 
-func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c color.Color) error {
-	log.Printf("Drawing title text: %q at size %.1f", text, size)
-
-	// Try system fonts in order
-	fontNames := []string{
-		"Inter",
-		"SF Pro",
-		"Segoe UI",
-		"NotoSans",
-		"DejaVuSans",
-		"Liberation Sans",
-	}
+func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c color.Color, fontName string) error {
+	log.Printf("Drawing title text: %q at size %.1f with font %s", text, size, fontName)
 
 	var font *fonts.Font
 	var err error
 
-	for _, name := range fontNames {
-		font, err = fonts.GetFont(name, nil)
-		if err == nil {
-			log.Printf("Using font: %s", name)
-			break
+	// Try to load the requested font
+	if fontName != "" {
+		font, err = fonts.GetFont(fontName, nil)
+		if err != nil {
+			log.Printf("Failed to load requested font %s: %v", fontName, err)
 		}
-		log.Printf("Failed to load %s font: %v", name, err)
 	}
 
+	// If the requested font failed to load, use fallback
 	if font == nil {
-		return fmt.Errorf("failed to load any system fonts: %v", err)
+		log.Printf("Using fallback font")
+		font, err = fonts.GetFallback()
+		if err != nil {
+			return fmt.Errorf("failed to load fallback font: %v", err)
+		}
 	}
 
 	face, err := font.GetFontFace(size)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create font face: %v", err)
 	}
 
 	ctx.SetFontFace(face)
@@ -89,18 +83,18 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 	// Get text dimensions
 	w, h := ctx.MeasureString(text)
 
+	// Adjust Y position to account for font metrics and achieve true vertical centering
+	metrics := face.Metrics()
+	ascent := float64(metrics.Ascent.Round())
+	descent := float64(metrics.Descent.Round())
+	adjustment := (ascent - descent) / 2
+	y = y - adjustment/2
+
 	// Draw the text centered at the specified position
 	ctx.DrawStringAnchored(text, x, y, 0.5, 0.5)
 	log.Printf("Drew text at %.1f,%.1f (width: %.1f, height: %.1f)", x, y, w, h)
 
 	return nil
-}
-
-// DrawWindowControl draws a circular window control button
-func DrawWindowControl(dc *gg.Context, x, y, size float64, color color.Color) {
-	dc.SetColor(color)
-	dc.DrawCircle(x+size/2, y+size/2, size/2)
-	dc.Fill()
 }
 
 // DrawCross draws an X symbol for the close button
@@ -164,48 +158,4 @@ func DrawLine(dc *gg.Context, x, y, size float64, color color.Color) {
 	dc.MoveTo(x, y)
 	dc.LineTo(x+size, y)
 	dc.Stroke()
-}
-
-// DrawWindowControls draws the window control buttons based on the style
-func DrawWindowControls(dc *gg.Context, width, height int, style WindowStyle) {
-	switch style {
-	case MacOSStyle:
-		// macOS style - left aligned "traffic light" buttons
-		buttonSize := 12.0
-		spacing := 8.0
-		x := spacing
-		y := float64(height)/2 - buttonSize/2
-
-		// Close button (red)
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{R: 255, G: 95, B: 87, A: 255})
-		x += buttonSize + spacing
-
-		// Minimize button (yellow)
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{R: 255, G: 189, B: 46, A: 255})
-		x += buttonSize + spacing
-
-		// Maximize button (green)
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{R: 39, G: 201, B: 63, A: 255})
-
-	case Windows11Style:
-		// Windows 11 style - right aligned buttons
-		buttonSize := 14.0
-		spacing := 6.0
-		y := float64(height)/2 - buttonSize/2
-
-		// Close button (rightmost)
-		x := float64(width) - buttonSize - spacing
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{A: 255})
-		DrawCross(dc, x, y, buttonSize, color.RGBA{A: 255})
-
-		// Maximize button
-		x -= buttonSize + spacing
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{A: 255})
-		DrawSquare(dc, x, y, buttonSize, color.RGBA{A: 255})
-
-		// Minimize button
-		x -= buttonSize + spacing
-		DrawWindowControl(dc, x, y, buttonSize, color.RGBA{A: 255})
-		DrawLine(dc, x, y+buttonSize/2, buttonSize, color.RGBA{A: 255})
-	}
 }

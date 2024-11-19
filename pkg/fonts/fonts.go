@@ -16,6 +16,9 @@ import (
 	"golang.org/x/image/font"
 )
 
+//go:embed fallback/LiberationSans-Regular.ttf
+var fallbackFont []byte
+
 // embeddedFS is used to store bundled fonts when built with bundle_fonts tag
 var embeddedFS *embed.FS
 
@@ -87,6 +90,10 @@ func (sfs systemFontFS) Open(name string) (fs.File, error) {
 }
 
 func GetFont(name string, style *FontStyle) (*Font, error) {
+	if name == "" {
+		return nil, fmt.Errorf("font name cannot be empty")
+	}
+
 	cacheKey := name
 	if style != nil {
 		cacheKey = fmt.Sprintf("%s-%d-%v-%v-%v", name, style.Weight, style.Italic, style.Condensed, style.Mono)
@@ -100,102 +107,81 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 	}
 	variantCacheMu.RUnlock()
 
-	// Try the requested font first
+	// Try to load the requested font
 	variants, err := GetFontVariants(name)
-	if err == nil && len(variants) > 0 {
-		log.Printf("Found font %s with %d variants", name, len(variants))
-		var selected *Font
-
-		if style == nil {
-			// Find regular variant
-			for _, font := range variants {
-				if font.Style.Weight == WeightRegular && !font.Style.Italic {
-					selected = font
-					break
-				}
-			}
-			if selected == nil {
-				selected = variants[0]
-			}
-		} else {
-			// Find best matching style
-			var bestScore int
-			for _, font := range variants {
-				score := matchStyleScore(font.Style, *style)
-				if score > bestScore {
-					selected = font
-					bestScore = score
-				}
-			}
-		}
-
-		if selected != nil {
-			// Cache the result
-			variantCacheMu.Lock()
-			variantCache[cacheKey] = selected
-			variantCacheMu.Unlock()
-			return selected, nil
-		}
-	}
-
-	// If we're looking for a specific font and it wasn't found, return an error
-	// before trying fallbacks
-	if len(variants) == 0 {
+	if err != nil || len(variants) == 0 {
 		return nil, fmt.Errorf("font %s not found", name)
 	}
 
-	// Try fallback fonts in order
-	fallbacks := []string{
-		"Inter",
-		"SF Pro",
-		"Segoe UI",
-		"NotoSans",
-		"DejaVuSans",
-		"Liberation Sans",
-		"Arial",
-		"Helvetica",
-	}
+	log.Printf("Found font %s with %d variants", name, len(variants))
+	var selected *Font
 
-	for _, fallback := range fallbacks {
-		variants, err := GetFontVariants(fallback)
-		if err == nil && len(variants) > 0 {
-			log.Printf("Found fallback font %s with %d variants", fallback, len(variants))
-			var selected *Font
-
-			if style == nil {
-				// Find regular variant
-				for _, font := range variants {
-					if font.Style.Weight == WeightRegular && !font.Style.Italic {
-						selected = font
-						break
-					}
-				}
-				if selected == nil {
-					selected = variants[0]
-				}
-			} else {
-				// Find best matching style
-				var bestScore int
-				for _, font := range variants {
-					score := matchStyleScore(font.Style, *style)
-					if score > bestScore {
-						selected = font
-						bestScore = score
-					}
-				}
+	if style == nil {
+		// Find regular variant
+		for _, font := range variants {
+			if font.Style.Weight == WeightRegular && !font.Style.Italic {
+				selected = font
+				break
 			}
-
-			if selected != nil {
-				// Cache the result
-				variantCacheMu.Lock()
-				variantCache[cacheKey] = selected
-				variantCacheMu.Unlock()
-				return selected, nil
+		}
+		if selected == nil {
+			selected = variants[0]
+		}
+	} else {
+		// Find best matching style
+		var bestScore int
+		for _, font := range variants {
+			score := matchStyleScore(font.Style, *style)
+			if score > bestScore {
+				selected = font
+				bestScore = score
 			}
 		}
 	}
 
-	return nil, fmt.Errorf("no suitable font found for %s", name)
+	if selected != nil {
+		// Cache the result
+		variantCacheMu.Lock()
+		variantCache[cacheKey] = selected
+		variantCacheMu.Unlock()
+		return selected, nil
+	}
+
+	return nil, fmt.Errorf("no suitable variant found for font %s", name)
+}
+
+// GetFallback returns the embedded Liberation Sans font as a fallback
+func GetFallback() (*Font, error) {
+	// Check if we already have the font in the cache
+	variantCacheMu.RLock()
+	if font, ok := variantCache["LiberationSans"]; ok {
+		variantCacheMu.RUnlock()
+		return font, nil
+	}
+	variantCacheMu.RUnlock()
+
+	// Parse the embedded font to validate it
+	_, err := truetype.Parse(fallbackFont)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse fallback font: %v", err)
+	}
+
+	// Create the font struct
+	font := &Font{
+		Name: "LiberationSans",
+		Data: fallbackFont,
+		Style: FontStyle{
+			Weight: WeightRegular,
+			Italic: false,
+		},
+	}
+
+	// Cache the font
+	variantCacheMu.Lock()
+	variantCache["LiberationSans"] = font
+	variantCacheMu.Unlock()
+
+	return font, nil
 }
 
 // matchStyleScore returns a score indicating how well two font styles match

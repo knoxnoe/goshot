@@ -25,12 +25,14 @@ type MacOSChrome struct {
 	cornerRadius float64
 	title        string
 	darkMode     bool
+	titleBar     bool
 }
 
 // NewMacOSChrome creates a new macOS-style window chrome
 func NewMacOSChrome(opts ...ChromeOption) *MacOSChrome {
 	chrome := &MacOSChrome{
 		theme: Theme{
+			TitleFont:         "SF Pro",
 			TitleBackground:   color.RGBA{R: 236, G: 236, B: 236, A: 255},
 			TitleText:         color.RGBA{R: 76, G: 76, B: 76, A: 255},
 			ControlsColor:     color.RGBA{R: 76, G: 76, B: 76, A: 255},
@@ -39,6 +41,7 @@ func NewMacOSChrome(opts ...ChromeOption) *MacOSChrome {
 			DarkTextColor:     color.RGBA{R: 236, G: 236, B: 236, A: 255},
 		},
 		darkTheme: Theme{
+			TitleFont:         "SF Pro",
 			TitleBackground:   color.RGBA{R: 48, G: 48, B: 48, A: 255},
 			TitleText:         color.RGBA{R: 236, G: 236, B: 236, A: 255},
 			ControlsColor:     color.RGBA{R: 236, G: 236, B: 236, A: 255},
@@ -47,6 +50,9 @@ func NewMacOSChrome(opts ...ChromeOption) *MacOSChrome {
 			DarkTextColor:     color.RGBA{R: 236, G: 236, B: 236, A: 255},
 		},
 		cornerRadius: defaultCornerRadius,
+		title:        "Screenshot",
+		darkMode:     false,
+		titleBar:     true,
 	}
 
 	for _, opt := range opts {
@@ -81,8 +87,17 @@ func (c *MacOSChrome) SetDarkMode(darkMode bool) Chrome {
 	return c
 }
 
+func (c *MacOSChrome) SetTitleBar(show bool) Chrome {
+	c.titleBar = show
+	return c
+}
+
 // Render implements the Chrome interface
 func (c *MacOSChrome) Render(content image.Image) (image.Image, error) {
+	if !c.titleBar {
+		return content, nil
+	}
+
 	theme := c.theme
 	if c.darkMode {
 		theme = c.darkTheme
@@ -107,15 +122,15 @@ func (c *MacOSChrome) Render(content image.Image) (image.Image, error) {
 
 	// Close button (leftmost)
 	closeX := float64(macOSLeftPadding)
-	DrawWindowControl(dc, closeX, controlY, float64(macOSControlSize), color.RGBA{R: 255, G: 95, B: 87, A: 255})
+	DrawMacOSWindowControl(dc, closeX, controlY, float64(macOSControlSize), color.RGBA{R: 255, G: 95, B: 87, A: 255})
 
 	// Minimize button
 	minimizeX := closeX + float64(macOSControlSize) + float64(macOSControlSpacing)
-	DrawWindowControl(dc, minimizeX, controlY, float64(macOSControlSize), color.RGBA{R: 255, G: 189, B: 46, A: 255})
+	DrawMacOSWindowControl(dc, minimizeX, controlY, float64(macOSControlSize), color.RGBA{R: 255, G: 189, B: 46, A: 255})
 
 	// Maximize button
 	maximizeX := minimizeX + float64(macOSControlSize) + float64(macOSControlSpacing)
-	DrawWindowControl(dc, maximizeX, controlY, float64(macOSControlSize), color.RGBA{R: 39, G: 201, B: 63, A: 255})
+	DrawMacOSWindowControl(dc, maximizeX, controlY, float64(macOSControlSize), color.RGBA{R: 39, G: 201, B: 63, A: 255})
 
 	// Draw title text if provided (centered)
 	if c.title != "" {
@@ -123,7 +138,7 @@ func (c *MacOSChrome) Render(content image.Image) (image.Image, error) {
 		if c.darkMode {
 			textColor = c.theme.DarkTextColor
 		}
-		if err := DrawTitleText(dc, c.title, width, macOSTitleBarHeight, textColor, 12); err != nil {
+		if err := DrawTitleText(dc, c.title, int(width), int(macOSTitleBarHeight), textColor, macOSTitleFontSize, c.theme.TitleFont); err != nil {
 			return nil, err
 		}
 	}
@@ -148,4 +163,11 @@ func (m *MacOSChrome) MinimumSize() (width, height int) {
 // ContentInsets implements the Chrome interface
 func (m *MacOSChrome) ContentInsets() (top, right, bottom, left int) {
 	return macOSTitleBarHeight, macOSRightPadding, 0, macOSLeftPadding
+}
+
+// DrawMacOSWindowControl draws a circular window control button
+func DrawMacOSWindowControl(dc *gg.Context, x, y, size float64, color color.Color) {
+	dc.SetColor(color)
+	dc.DrawCircle(x+size/2, y+size/2, size/2)
+	dc.Fill()
 }

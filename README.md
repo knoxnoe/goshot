@@ -121,32 +121,31 @@ func main() {
 
 ## 🗺 Roadmap
 
-### Phase 1: Core Functionality
+### Core Functionality
 - ✅ Set up project structure and dependencies
 - ✅ Implement basic syntax highlighting using Chroma
 - ✅ Add font loading support, including bundled fonts
-- [ ] Create basic window chrome rendering
-- [ ] Implement solid color backgrounds
-- [ ] Add PNG export functionality
+- ✅ Create basic window chrome rendering
+- ✅ Implement solid color backgrounds
+- ✅ Add PNG export functionality
 - [ ] Create basic CLI interface
 
-### Phase 2: Enhanced Features
+### Enhanced Features
 - [ ] Add gradient background support
 - [ ] Implement image background support
-- [ ] Add window style variations (macOS, Windows, Linux)
-- [ ] Implement custom font support
-- [ ] Add JPEG export functionality
+- ✅ Add window style variations (macOS, Windows, Linux)
+- ✅ Implement custom font support
+- ✅ Add JPEG export functionality
 - [ ] Create comprehensive CLI interface
 
-### Phase 3: Polish and Extensions
-- [ ] Add more syntax highlighting themes
+### Polish and Extensions
 - [ ] Implement shadow effects
-- [ ] Add line number support
+- ✅ Add line number support
 - [ ] Create window title customization
 - [ ] Add watermark support
-- [ ] Implement padding and margin controls
+- ✅ Implement padding and margin controls
 
-### Phase 4: Documentation and Examples
+### Documentation and Examples
 - [ ] Write comprehensive documentation
 - [ ] Create example gallery
 - [ ] Add integration tests

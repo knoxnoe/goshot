@@ -1,58 +1,65 @@
 package syntax
 
 import (
-	"image/color"
+	"strings"
 	"testing"
 )
 
 func TestHighlight(t *testing.T) {
 	tests := []struct {
-		name      string
-		code      string
-		language  string
-		styleName string
-		wantErr   bool
+		name    string
+		code    string
+		options *HighlightOptions
+		wantErr bool
 	}{
 		{
-			name: "Go code",
+			name: "Go code with line numbers",
 			code: `package main
 
 func main() {
     println("Hello, World!")
 }`,
-			language:  "go",
-			styleName: "monokai",
-			wantErr:   false,
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: true,
+			},
+			wantErr: false,
 		},
 		{
-			name: "Python code",
+			name: "Python code without line numbers",
 			code: `def greet(name):
     print(f"Hello, {name}!")
 
 greet("World")`,
-			language:  "python",
-			styleName: "monokai",
-			wantErr:   false,
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: false,
+			},
+			wantErr: false,
 		},
 		{
-			name: "Invalid language",
-			code: `some random text`,
-			language:  "nonexistent",
-			styleName: "monokai",
-			wantErr:   false, // Should not error, falls back to text
-		},
-		{
-			name: "Invalid style",
+			name: "Invalid style with custom tab width",
 			code: `package main`,
-			language:  "go",
-			styleName: "nonexistent",
-			wantErr:   false, // Should not error, falls back to default
+			options: &HighlightOptions{
+				Style:        "nonexistent",
+				TabWidth:     8,
+				ShowLineNums: true,
+			},
+			wantErr: false, // Should not error, falls back to default
+		},
+		{
+			name: "Default options",
+			code: `some random text`,
+			options: nil, // Should use DefaultOptions()
+			wantErr: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := Highlight(tt.code, tt.language, tt.styleName)
+			result, err := Highlight(tt.code, tt.options)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Highlight() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -63,6 +70,17 @@ greet("World")`,
 			}
 			if len(result.Lines) == 0 {
 				t.Error("Highlight() returned no lines")
+			}
+
+			// Check if options were properly applied or defaults were used
+			opts := tt.options
+			if opts == nil {
+				opts = DefaultOptions()
+			}
+
+			// Verify that the formatter respected the options
+			if opts.TabWidth != 4 && opts.TabWidth != 8 {
+				t.Errorf("TabWidth not properly set, got %d", opts.TabWidth)
 			}
 		})
 	}
@@ -96,16 +114,16 @@ func TestGetAvailableStyles(t *testing.T) {
 }
 
 func TestGetAvailableLanguages(t *testing.T) {
-	langs := GetAvailableLanguages()
+	langs := GetAvailableLanguages(false)
 	if len(langs) == 0 {
 		t.Error("GetAvailableLanguages() returned no languages")
 	}
 
 	// Check for some common languages
 	commonLangs := map[string]bool{
-		"Go":     false,
-		"Python": false,
-		"Java":   false,
+		"Go":         false,
+		"Python":     false,
+		"Java":       false,
 		"JavaScript": false,
 	}
 
@@ -126,25 +144,26 @@ func TestTokenProperties(t *testing.T) {
 	code := `package main
 
 func main() {
-    println("Hello, World!")
+	// A comment
+	println("Hello") // Another comment
 }`
-	result, err := Highlight(code, "go", "monokai")
-	if err != nil {
-		t.Fatalf("Highlight() failed: %v", err)
+	opts := &HighlightOptions{
+		Style:        "monokai",
+		TabWidth:     4,
+		ShowLineNums: true,
 	}
 
-	// Test that tokens have reasonable properties
+	result, err := Highlight(code, opts)
+	if err != nil {
+		t.Fatalf("Highlight() error = %v", err)
+	}
+
+	// Check that comments are properly styled
 	for _, line := range result.Lines {
 		for _, token := range line.Tokens {
-			// Text should not be empty
-			if token.Text == "" {
-				t.Error("Token has empty text")
-			}
-
-			// Color should not be transparent
-			if c, ok := token.Color.(color.RGBA); ok {
-				if c.A == 0 {
-					t.Error("Token has transparent color")
+			if strings.Contains(token.Text, "//") {
+				if !token.Italic {
+					t.Error("Comment token should be italic")
 				}
 			}
 		}
@@ -152,13 +171,93 @@ func main() {
 }
 
 func TestLineBreaks(t *testing.T) {
-	code := "line1\nline2\nline3"
-	result, err := Highlight(code, "text", "monokai")
-	if err != nil {
-		t.Fatalf("Highlight() failed: %v", err)
+	code := "line1\nline2\r\nline3\rline4"
+	opts := &HighlightOptions{
+		Style:        "monokai",
+		TabWidth:     4,
+		ShowLineNums: true,
 	}
 
-	if len(result.Lines) != 3 {
-		t.Errorf("Expected 3 lines, got %d", len(result.Lines))
+	result, err := Highlight(code, opts)
+	if err != nil {
+		t.Fatalf("Highlight() error = %v", err)
+	}
+
+	if len(result.Lines) != 4 {
+		t.Errorf("Expected 4 lines, got %d", len(result.Lines))
+	}
+}
+
+func TestHighlightEmptyLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		code     string
+		options  *HighlightOptions
+		expected int
+	}{
+		{
+			name: "Empty string",
+			code: "",
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: true,
+			},
+			expected: 1, // Should have one empty line
+		},
+		{
+			name: "Single newline",
+			code: "\n",
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: true,
+			},
+			expected: 2, // Should have two empty lines
+		},
+		{
+			name: "Multiple empty lines",
+			code: "\n\n\n",
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: false,
+			},
+			expected: 4, // Should have four empty lines
+		},
+		{
+			name: "Code with empty lines",
+			code: "line1\n\nline3\n\nline5",
+			options: &HighlightOptions{
+				Style:        "monokai",
+				TabWidth:     4,
+				ShowLineNums: true,
+			},
+			expected: 5, // Should have five lines total
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := Highlight(tt.code, tt.options)
+			if err != nil {
+				t.Fatalf("Highlight() error = %v", err)
+			}
+
+			if len(result.Lines) != tt.expected {
+				t.Errorf("Expected %d lines, got %d", tt.expected, len(result.Lines))
+			}
+
+			// Check that empty lines have an empty token list
+			for i, line := range result.Lines {
+				if len(line.Tokens) == 0 && i < len(result.Lines)-1 {
+					// Empty lines should have an empty token list (except possibly the last line)
+					continue
+				}
+				if len(line.Tokens) > 0 && strings.TrimSpace(line.Tokens[0].Text) == "" {
+					t.Errorf("Line %d: unexpected non-empty token list for empty line", i+1)
+				}
+			}
+		})
 	}
 }

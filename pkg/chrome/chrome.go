@@ -7,6 +7,8 @@ import (
 
 // Theme represents a color theme for window chrome
 type Theme struct {
+	// Font name for the title
+	TitleFont string
 	// Background color of the title bar
 	TitleBackground color.Color
 	// Text color for the title
@@ -49,6 +51,9 @@ type Chrome interface {
 	// SetDarkMode enables or disables dark mode
 	SetDarkMode(darkMode bool) Chrome
 
+	// SetTitleBar enables or disables the title bar
+	SetTitleBar(enabled bool) Chrome
+
 	// DefaultTheme returns the default light theme for the chrome implementation
 	DefaultTheme() Theme
 
@@ -58,3 +63,43 @@ type Chrome interface {
 
 // ChromeOption is a function that configures a Chrome implementation
 type ChromeOption func(Chrome) Chrome
+
+// WithTitle sets the window title
+func WithTitle(title string) ChromeOption {
+	return func(c Chrome) Chrome {
+		if w, ok := c.(interface{ SetTitle(string) Chrome }); ok {
+			return w.SetTitle(title)
+		}
+		return c
+	}
+}
+
+// WithDarkMode enables dark mode for the window chrome
+func WithDarkMode(enabled bool) ChromeOption {
+	return func(c Chrome) Chrome {
+		if w, ok := c.(interface{ SetDarkMode(bool) Chrome }); ok {
+			return w.SetDarkMode(enabled)
+		}
+		return c
+	}
+}
+
+// WithTitleBar enables or disables the title bar
+func WithTitleBar(enabled bool) ChromeOption {
+	return func(c Chrome) Chrome {
+		if w, ok := c.(interface{ SetTitleBar(bool) Chrome }); ok {
+			return w.SetTitleBar(enabled)
+		}
+		return c
+	}
+}
+
+// WithCornerRadius sets the corner radius for the window
+func WithCornerRadius(radius float64) ChromeOption {
+	return func(c Chrome) Chrome {
+		if w, ok := c.(interface{ SetCornerRadius(float64) Chrome }); ok {
+			return w.SetCornerRadius(radius)
+		}
+		return c
+	}
+}
