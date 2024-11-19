@@ -2,35 +2,27 @@ package main
 
 import (
 	"fmt"
-	"image"
 	"image/color"
 	"image/png"
-	"log"
 	"os"
-	"strings"
+	"path/filepath"
 
+	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/pkg/syntax"
 )
 
 func main() {
-	// List available fonts
-	fmt.Println("Available fonts:")
-	for _, font := range fonts.ListFonts() {
-		fmt.Printf("- %s\n", font)
-	}
+	// Sample code to highlight
+	sampleCode := `package main
 
-	// Create a sample content image
-	content := image.NewRGBA(image.Rect(0, 0, 800, 600))
+import "fmt"
 
-	// Fill content with a light gray color
-	for y := 0; y < content.Bounds().Dy(); y++ {
-		for x := 0; x < content.Bounds().Dx(); x++ {
-			content.Set(x, y, color.RGBA{R: 240, G: 240, B: 240, A: 255})
-		}
-	}
+func main() {
+    fmt.Println("Hello, World!")
+}`
 
-	// Define sample configurations
+	// Sample configurations
 	samples := []struct {
 		name     string
 		chrome   chrome.Chrome
@@ -58,24 +50,60 @@ func main() {
 
 	// Generate samples
 	for _, sample := range samples {
-		// Render the chrome
-		result, err := sample.chrome.Render(content)
+		// Highlight the code
+		highlighted, err := syntax.Highlight(sampleCode, "go", "monokai")
 		if err != nil {
-			log.Fatalf("Failed to render chrome: %v", err)
+			fmt.Printf("Error highlighting code: %v\n", err)
+			continue
 		}
 
-		// Save the result
-		outputFile := fmt.Sprintf("chrome_%s.png", strings.ToLower(strings.ReplaceAll(sample.name, " ", "_")))
-		f, err := os.Create(outputFile)
+		// Create render config with theme-appropriate colors
+		config := syntax.DefaultConfig()
+		if sample.darkMode {
+			config.LineNumberColor = color.RGBA{R: 128, G: 128, B: 128, A: 255}
+			config.LineNumberBg = color.RGBA{R: 40, G: 40, B: 40, A: 255}
+		} else {
+			config.LineNumberColor = color.RGBA{R: 128, G: 128, B: 128, A: 255}
+			config.LineNumberBg = color.RGBA{R: 245, G: 245, B: 245, A: 255}
+		}
+
+		// Create an image from the highlighted code
+		content, err := highlighted.RenderToImage(config)
 		if err != nil {
-			log.Fatalf("Failed to create output file: %v", err)
+			fmt.Printf("Error rendering code: %v\n", err)
+			continue
+		}
+
+		// Render the chrome
+		bg := background.NewColorBackground()
+		// Use a lilac color for all themes
+		lilacColor := color.RGBA{R: 230, G: 220, B: 255, A: 255}
+		bg.SetColor(lilacColor)
+
+		result, err := sample.chrome.Render(content)
+		if err != nil {
+			fmt.Printf("Error rendering chrome: %v\n", err)
+			continue
+		}
+		result = bg.Apply(result)
+
+		// Save the result
+		outDir := "samples"
+		if err := os.MkdirAll(outDir, 0755); err != nil {
+			fmt.Printf("Error creating output directory: %v\n", err)
+			continue
+		}
+
+		outPath := filepath.Join(outDir, fmt.Sprintf("%s.png", sample.name))
+		f, err := os.Create(outPath)
+		if err != nil {
+			fmt.Printf("Error creating output file: %v\n", err)
+			continue
 		}
 		defer f.Close()
 
 		if err := png.Encode(f, result); err != nil {
-			log.Fatalf("Failed to encode PNG: %v", err)
+			fmt.Printf("Error encoding PNG: %v\n", err)
 		}
-
-		fmt.Printf("Generated %s\n", outputFile)
 	}
 }
