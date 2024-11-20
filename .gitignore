@@ -1,4 +1,7 @@
 *.png
 *.jpg
+!cmd/examples/**/*.png
+!cmd/examples/**/*.jpg
+
 *.out
 *.log

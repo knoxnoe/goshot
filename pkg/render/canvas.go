@@ -66,8 +66,8 @@ func (c *Canvas) SetCodeStyle(style *CodeStyle) *Canvas {
 	return c
 }
 
-// RenderCode renders the code to an image
-func (c *Canvas) RenderCode(code string) (image.Image, error) {
+// RenderToImage renders the code to an image
+func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 	// Get highlighted code
 	highlightOpts := &syntax.HighlightOptions{
 		Style:            c.codeStyle.Theme,

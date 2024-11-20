@@ -199,7 +199,7 @@ All background types support:
 
 Additional features per type:
 - **Gradients**: Angle, center point, and intensity control (where applicable)
-- **Images**: Scale modes (fit, fill, stretch, tile), blur effects, and opacity
+- **Images**: Scale modes (fit, fill, stretch, tile, and cover), blur effects, and opacity
 
 ### Example with Chrome and Code Style
 
@@ -230,7 +230,8 @@ render.NewCanvas().
 ```
 .
 ├── cmd/
-│   └── goshot/          # CLI implementation
+│   ├── goshot/          # CLI implementation
+│   └── examples/        # Example code
 ├── pkg/
 │   ├── background/      # Background processing
 │   │   ├── background.go # Main background interface
@@ -253,7 +254,6 @@ render.NewCanvas().
 │   └── syntax/          # Syntax highlighting
 │       ├── syntax.go    # Main syntax interface
 │       └── render.go    # Syntax rendering
-├── examples/            # Example usage
 ├── go.mod
 ├── go.sum
 └── README.md

@@ -148,7 +148,7 @@ type RenderConfig struct {
 		fmt.Printf("Processing %s style...\n", sample.name)
 
 		// Render the code to an image
-		result, err := sample.canvas.RenderCode(sampleCode)
+		result, err := sample.canvas.RenderToImage(sampleCode)
 		if err != nil {
 			fmt.Printf("Error rendering code: %v\n", err)
 			continue

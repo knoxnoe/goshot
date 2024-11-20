@@ -17,6 +17,8 @@ const (
 	ImageScaleFit ImageScaleMode = iota
 	// ImageScaleFill scales the image to fill the bounds while maintaining aspect ratio
 	ImageScaleFill
+	// ImageScaleCover scales the image to cover the entire area while maintaining aspect ratio (like CSS background-size: cover)
+	ImageScaleCover
 	// ImageScaleStretch stretches the image to exactly fit the bounds
 	ImageScaleStretch
 	// ImageScaleTile repeats the image to fill the bounds
@@ -96,7 +98,7 @@ func (bg ImageBackground) scaleImage(width, height int) image.Image {
 	case ImageScaleStretch:
 		return imaging.Resize(bg.image, width, height, imaging.Lanczos)
 
-	case ImageScaleFill:
+	case ImageScaleFill, ImageScaleCover:
 		srcRatio := float64(srcWidth) / float64(srcHeight)
 		dstRatio := float64(width) / float64(height)
 
@@ -109,8 +111,17 @@ func (bg ImageBackground) scaleImage(width, height int) image.Image {
 			newHeight = int(float64(width) / srcRatio)
 		}
 		scaled := imaging.Resize(bg.image, newWidth, newHeight, imaging.Lanczos)
-		// Center and crop
-		return imaging.CropCenter(scaled, width, height)
+		
+		// For ImageScaleCover, we center crop the image
+		if bg.scaleMode == ImageScaleCover {
+			return imaging.CropCenter(scaled, width, height)
+		}
+		
+		// For ImageScaleFill, we anchor to the top-left
+		return imaging.Crop(scaled, image.Rectangle{
+			Min: image.Point{0, 0},
+			Max: image.Point{width, height},
+		})
 
 	case ImageScaleFit:
 		srcRatio := float64(srcWidth) / float64(srcHeight)
@@ -124,7 +135,14 @@ func (bg ImageBackground) scaleImage(width, height int) image.Image {
 			newHeight = height
 			newWidth = int(float64(height) * srcRatio)
 		}
-		return imaging.Resize(bg.image, newWidth, newHeight, imaging.Lanczos)
+		scaled := imaging.Resize(bg.image, newWidth, newHeight, imaging.Lanczos)
+		// Create a new image with the target size and center the scaled image
+		centered := image.NewRGBA(image.Rect(0, 0, width, height))
+		scaledBounds := scaled.Bounds()
+		centerX := (width - scaledBounds.Dx()) / 2
+		centerY := (height - scaledBounds.Dy()) / 2
+		draw.Draw(centered, scaledBounds.Add(image.Point{centerX, centerY}), scaled, scaledBounds.Min, draw.Over)
+		return centered
 
 	case ImageScaleTile:
 		// Create a new image to hold the tiled pattern
@@ -168,33 +186,39 @@ func (bg ImageBackground) Render(content image.Image) image.Image {
 		drawRoundedRect(mask, dst.Bounds(), color.Alpha{A: 255}, bg.cornerRadius)
 	}
 
-	// Draw the background image with opacity
-	if bg.opacity < 1.0 {
-		for y := 0; y < height; y++ {
-			for x := 0; x < width; x++ {
-				if mask != nil {
-					_, _, _, a := mask.At(x, y).RGBA()
-					if a == 0 {
-						continue
-					}
-				}
+	// Convert scaled image to RGBA if it isn't already
+	scaledRGBA := image.NewRGBA(scaled.Bounds())
+	draw.Draw(scaledRGBA, scaledRGBA.Bounds(), scaled, scaled.Bounds().Min, draw.Src)
 
-				r, g, b, a := scaled.At(x, y).RGBA()
-				a = uint32(float64(a) * bg.opacity)
-				dst.Set(x, y, color.RGBA64{
-					R: uint16(r),
-					G: uint16(g),
-					B: uint16(b),
-					A: uint16(a),
-				})
+	// Apply opacity if needed
+	if bg.opacity < 1.0 {
+		for y := 0; y < scaledRGBA.Bounds().Dy(); y++ {
+			for x := 0; x < scaledRGBA.Bounds().Dx(); x++ {
+				c := scaledRGBA.RGBAAt(x, y)
+				// For JPEG images, ensure full opacity before applying the opacity factor
+				if _, ok := bg.image.(*image.YCbCr); ok {
+					c.A = 255
+				}
+				c.A = uint8(float64(c.A) * bg.opacity)
+				scaledRGBA.Set(x, y, c)
 			}
 		}
-	} else {
-		if mask != nil {
-			draw.DrawMask(dst, dst.Bounds(), scaled, bounds.Min, mask, bounds.Min, draw.Over)
-		} else {
-			draw.Draw(dst, dst.Bounds(), scaled, bounds.Min, draw.Over)
+	} else if _, ok := bg.image.(*image.YCbCr); ok {
+		// For JPEG images with no opacity, ensure full opacity
+		for y := 0; y < scaledRGBA.Bounds().Dy(); y++ {
+			for x := 0; x < scaledRGBA.Bounds().Dx(); x++ {
+				c := scaledRGBA.RGBAAt(x, y)
+				c.A = 255
+				scaledRGBA.Set(x, y, c)
+			}
 		}
+	}
+
+	// Draw the background image
+	if mask != nil {
+		draw.DrawMask(dst, dst.Bounds(), scaledRGBA, scaledRGBA.Bounds().Min, mask, mask.Bounds().Min, draw.Over)
+	} else {
+		draw.Draw(dst, dst.Bounds(), scaledRGBA, scaledRGBA.Bounds().Min, draw.Over)
 	}
 
 	// Draw the content centered on the background
@@ -202,7 +226,14 @@ func (bg ImageBackground) Render(content image.Image) image.Image {
 		X: bg.padding.Left,
 		Y: bg.padding.Top,
 	}
-	draw.Draw(dst, content.Bounds().Add(contentPos), content, bounds.Min, draw.Over)
+	contentRect := image.Rectangle{
+		Min: contentPos,
+		Max: image.Point{
+			X: contentPos.X + bounds.Dx(),
+			Y: contentPos.Y + bounds.Dy(),
+		},
+	}
+	draw.Draw(dst, contentRect, content, bounds.Min, draw.Over)
 
 	return dst
 }
