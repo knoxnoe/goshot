@@ -6,6 +6,7 @@ require github.com/alecthomas/chroma v0.10.0
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/disintegration/imaging v1.6.2 // indirect
 	github.com/go-fonts/liberation v0.3.3 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c // indirect

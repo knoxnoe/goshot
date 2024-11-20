@@ -48,32 +48,6 @@ type RenderConfig struct {
 
 	// Line highlighting settings
 	LineHighlightColor color.Color // Color for highlighted lines
-}
-
-// DefaultConfig returns a default rendering configuration
-func DefaultConfig() *RenderConfig {
-	f, _ := truetype.Parse(gomono.TTF)
-	return &RenderConfig{
-		FontSize:   14,
-		LineHeight: 1.5,
-		PaddingX:   10,
-		PaddingY:   10,
-		FontFamily: f,
-		TabWidth:   4,    // Default 4 spaces per tab
-		MinWidth:   200,  // Minimum width of 200px
-		MaxWidth:   1460, // Maximum width for 120 characters
-
-		// Line number defaults
-		ShowLineNumbers:   true,
-		LineNumberColor:   color.RGBA{R: 128, G: 128, B: 128, A: 255}, // Gray color
-		LineNumberPadding: 10,
-		LineNumberBg:      color.RGBA{R: 245, G: 245, B: 245, A: 255}, // Light gray background
-		StartLineNumber:   1,
-		EndLineNumber:     0,
-
-		// Line highlighting defaults
-		LineHighlightColor: color.RGBA{R: 68, G: 68, B: 68, A: 40}, // Semi-transparent dark color
-	}
 }`
 
 	// Sample configurations
@@ -86,9 +60,21 @@ func DefaultConfig() *RenderConfig {
 			canvas: render.NewCanvas().
 				SetChrome(chrome.NewWindows11Chrome(chrome.WithTitle("My App"))).
 				SetBackground(
-					background.NewColorBackground().
-						SetColor(color.RGBA{R: 25, G: 25, B: 25, A: 255}).
-						SetPadding(40),
+					background.NewGradientBackground(
+						background.DiamondGradient,
+						// Pink purple and yellow
+						background.GradientStop{Color: color.RGBA{R: 255, G: 0, B: 255, A: 255}, Position: 0},
+						background.GradientStop{Color: color.RGBA{R: 128, G: 0, B: 128, A: 255}, Position: 0.1},
+						background.GradientStop{Color: color.RGBA{R: 255, G: 255, B: 0, A: 255}, Position: 0.2},
+						background.GradientStop{Color: color.RGBA{R: 128, G: 128, B: 0, A: 255}, Position: 0.3},
+						background.GradientStop{Color: color.RGBA{R: 0, G: 255, B: 255, A: 255}, Position: 0.4},
+						background.GradientStop{Color: color.RGBA{R: 0, G: 128, B: 128, A: 255}, Position: 0.5},
+						background.GradientStop{Color: color.RGBA{R: 255, G: 0, B: 0, A: 255}, Position: 0.6},
+						background.GradientStop{Color: color.RGBA{R: 128, G: 0, B: 0, A: 255}, Position: 0.7},
+						background.GradientStop{Color: color.RGBA{R: 255, G: 0, B: 255, A: 255}, Position: 0.8},
+						background.GradientStop{Color: color.RGBA{R: 128, G: 0, B: 128, A: 255}, Position: 0.9},
+						background.GradientStop{Color: color.RGBA{R: 255, G: 255, B: 0, A: 255}, Position: 1},
+					).SetCenter(0.5, 0.5).SetPadding(100),
 				).
 				SetCodeStyle(&render.CodeStyle{
 					Language:            "go",
