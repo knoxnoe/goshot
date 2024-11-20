@@ -1,8 +1,14 @@
-# 🎨 Goshot
+# Goshot
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/watzon/goshot.svg)](https://pkg.go.dev/github.com/watzon/goshot)
-[![Go Report Card](https://goreportcard.com/badge/github.com/watzon/goshot)](https://goreportcard.com/report/github.com/watzon/goshot)
-[![License](https://img.shields.io/github/license/watzon/goshot)](https://github.com/watzon/goshot/blob/main/LICENSE)
+<div align="center">
+    <img src=".github/example.png">
+</div>
+
+<div align="center">
+    <img src="https://pkg.go.dev/badge/github.com/watzon/goshot.svg" alt="Go Reference">
+    <img src="https://goreportcard.com/badge/github.com/watzon/goshot" alt="Go Report Card">
+    <img src="https://img.shields.io/github/license/watzon/goshot" alt="License">
+</div>
 
 Goshot is a powerful Go library and CLI tool for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds. Similar to [Carbon](https://carbon.now.sh) and [Silicon](https://github.com/Aloxaf/Silicon), Goshot allows you to create stunning visual representations of your code snippets for documentation, presentations, or social media sharing.
 

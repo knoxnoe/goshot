@@ -38,10 +38,15 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 		SetScaleMode(background.ImageScaleTile).
 		SetBlurRadius(0.5).
 		SetOpacity(1.0).
-		SetPadding(40)
+		SetPadding(40).
+		SetCornerRadius(10)
 
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacOSChrome(chrome.WithTitle("Image Background Example"))).
+		SetChrome(
+			chrome.NewMacOSChrome(
+				chrome.WithTitle("Image Background Example"),
+				chrome.WithDarkMode(true),
+			)).
 		SetBackground(bg).
 		SetCodeStyle(&render.CodeStyle{
 			Language:        "go",

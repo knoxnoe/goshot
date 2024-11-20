@@ -1,5 +1,6 @@
 *.png
 *.jpg
+!.github/*.png
 !cmd/examples/**/*.png
 !cmd/examples/**/*.jpg
 
