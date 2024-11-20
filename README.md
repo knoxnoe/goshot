@@ -1,16 +1,15 @@
 # Goshot
 
+<a href="https://pkg.go.dev/github.com/watzon/goshot"><img src="https://pkg.go.dev/badge/github.com/watzon/goshot.svg" alt="Go Reference"></a>
+<a href="https://goreportcard.com/report/github.com/watzon/goshot"><img src="https://goreportcard.com/badge/github.com/watzon/goshot" alt="Go Report Card"></a>
+<a href="LICENSE"><img src="https://img.shields.io/github/license/watzon/goshot" alt="License"></a>
+
+Goshot is a powerful Go library and CLI tool for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds. Similar to [Carbon](https://carbon.now.sh) and [Silicon](https://github.com/Aloxaf/Silicon), Goshot allows you to create stunning visual representations of your code snippets for documentation, presentations, or social media sharing.
+
 <div align="center">
     <img src=".github/example.png">
 </div>
 
-<div align="center">
-    <a href="https://pkg.go.dev/github.com/watzon/goshot"><img src="https://pkg.go.dev/badge/github.com/watzon/goshot.svg" alt="Go Reference"></a>
-    <a href="https://goreportcard.com/report/github.com/watzon/goshot"><img src="https://goreportcard.com/badge/github.com/watzon/goshot" alt="Go Report Card"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/watzon/goshot" alt="License"></a>
-</div>
-
-Goshot is a powerful Go library and CLI tool for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds. Similar to [Carbon](https://carbon.now.sh) and [Silicon](https://github.com/Aloxaf/Silicon), Goshot allows you to create stunning visual representations of your code snippets for documentation, presentations, or social media sharing.
 
 ## ✨ Features
 
