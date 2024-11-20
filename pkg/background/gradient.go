@@ -188,7 +188,10 @@ func (bg GradientBackground) Render(content image.Image) image.Image {
 				// Calculate distance from center
 				dx := float64(x) - centerX
 				dy := float64(y) - centerY
-				pos = math.Sqrt(dx*dx+dy*dy) / (math.Sqrt(centerX*centerX + centerY*centerY))
+				// Calculate maximum possible distance from center to any corner
+				maxDist := math.Sqrt(math.Max(centerX*centerX, math.Pow(float64(width)-centerX, 2)) +
+					math.Max(centerY*centerY, math.Pow(float64(height)-centerY, 2)))
+				pos = math.Sqrt(dx*dx+dy*dy) / maxDist
 			case AngularGradient:
 				// Calculate angle from center
 				dx := float64(x) - centerX

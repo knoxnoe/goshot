@@ -41,6 +41,14 @@ var (
 	windowTitle        string
 	windowCornerRadius float64
 
+	// Gradient stuff
+	gradientType      string
+	gradientStops     []string
+	gradientAngle     float64
+	gradientCenterX   float64
+	gradientCenterY   float64
+	gradientIntensity float64
+
 	// Padding and layout
 	tabWidth     int
 	startLine    int
@@ -94,6 +102,14 @@ func init() {
 	renderCmd.Flags().BoolVar(&windowControls, "no-window-controls", false, "Hide the window controls")
 	renderCmd.Flags().StringVar(&windowTitle, "window-title", "", "Show window title")
 	renderCmd.Flags().Float64Var(&windowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
+
+	// Gradient flags
+	renderCmd.Flags().StringVar(&gradientType, "gradient-type", "linear", "Gradient type. Available types: linear, radial")
+	renderCmd.Flags().StringArrayVar(&gradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops. eg. '--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100'")
+	renderCmd.Flags().Float64Var(&gradientAngle, "gradient-angle", 90, "Gradient angle in degrees")
+	renderCmd.Flags().Float64Var(&gradientCenterX, "gradient-center-x", 0.5, "Center X of the gradient")
+	renderCmd.Flags().Float64Var(&gradientCenterY, "gradient-center-y", 0.5, "Center Y of the gradient")
+	renderCmd.Flags().Float64Var(&gradientIntensity, "gradient-intensity", 5, "Intensity modifier for special gradients")
 
 	// Padding and layout flags
 	renderCmd.Flags().IntVar(&tabWidth, "tab-width", 4, "Tab width")
@@ -260,6 +276,40 @@ func renderImage(cmd *cobra.Command, args []string) {
 			return
 		}
 		bg = background.NewImageBackground(backgroundImage).SetScaleMode(fit)
+	} else if gradientType != "" {
+		stops, err := parseGradientStops(gradientStops)
+		if err != nil {
+			fmt.Printf("invalid gradient stops: %v", err)
+			return
+		}
+
+		var gradient background.GradientType
+		switch gradientType {
+		case "linear":
+			gradient = background.LinearGradient
+		case "radial":
+			gradient = background.RadialGradient
+		case "angular":
+			gradient = background.AngularGradient
+		case "diamond":
+			gradient = background.DiamondGradient
+		case "spiral":
+			gradient = background.SpiralGradient
+		case "square":
+			gradient = background.SquareGradient
+		case "star":
+			gradient = background.StarGradient
+		default:
+			fmt.Printf("invalid gradient type: %s", gradientType)
+			return
+		}
+
+		bg = background.NewGradientBackground(gradient, stops...).
+			SetAngle(gradientAngle).
+			SetCenter(gradientCenterX, gradientCenterY).
+			SetIntensity(gradientIntensity).
+			SetCenter(gradientCenterX, gradientCenterY).
+			SetPaddingDetailed(padHoriz, padVert, padVert, padHoriz)
 	} else {
 		bg = background.NewColorBackground().
 			SetColor(bgColor).
@@ -417,4 +467,39 @@ func parseFonts(input string) (string, float64) {
 	}
 
 	return "", 14.0
+}
+
+// parseGradientStops takes in a string slice of gradient stops and returns
+// a slice of background.GradientStop.
+func parseGradientStops(input []string) ([]background.GradientStop, error) {
+	var result []background.GradientStop
+	for _, part := range input {
+		parts := strings.Split(part, ";")
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid gradient stop format: %s", part)
+		}
+
+		hexColor := strings.TrimSpace(parts[0])
+		positionStr := strings.TrimSpace(parts[1])
+
+		color, err := parseHexColor(hexColor)
+		if err != nil {
+			return nil, fmt.Errorf("invalid color in gradient stop: %s", err)
+		}
+
+		position, err := strconv.ParseFloat(positionStr, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid position in gradient stop: %s", err)
+		}
+
+		if position < 0 || position > 100 {
+			return nil, fmt.Errorf("gradient stop position must be between 0 and 100: %f", position)
+		}
+
+		result = append(result, background.GradientStop{
+			Color:    color,
+			Position: position / 100, // Convert percentage to decimal
+		})
+	}
+	return result, nil
 }
