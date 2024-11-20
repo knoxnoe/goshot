@@ -83,7 +83,13 @@ func main() {
     code := `func main() {
         fmt.Println("Hello, World!")
     }`
-    if err := canvas.RenderToFile(code, "code.png"); err != nil {
+    
+    img, err := canvas.RenderToImage(code)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    if err := render.SaveAsPNG(img, "code.png"); err != nil {
         log.Fatal(err)
     }
 }
