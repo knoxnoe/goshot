@@ -26,6 +26,9 @@ Goshot is a powerful Go library and CLI tool for creating beautiful code screens
 
 ### Installation
 
+> [!WARNING]  
+> The CLI is a work in progress and will be coming very soon.
+
 ```bash
 # Install the CLI tool
 go install github.com/watzon/goshot/cmd/goshot@latest
@@ -57,7 +60,17 @@ func main() {
                 background.LinearGradient,
                 background.GradientStop{Color: color.RGBA{R: 26, G: 27, B: 38, A: 255}, Position: 0},
                 background.GradientStop{Color: color.RGBA{R: 40, G: 42, B: 54, A: 255}, Position: 1},
-            ).SetAngle(45).SetPadding(40),
+            ).
+                SetAngle(45).
+                SetPadding(40).
+                SetCornerRadius(8).
+                SetShadow(
+                    background.NewShadow().
+                        SetOffset(0, 3).
+                        SetBlur(20).
+                        SetSpread(8).
+                        SetColor(color.RGBA{R: 0, G: 0, B: 0, A: 200}),
+                ),
         ).
         SetCodeStyle(&render.CodeStyle{
             Language:        "go",
