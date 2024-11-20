@@ -32,7 +32,7 @@ type MacOSChrome struct {
 func NewMacOSChrome(opts ...ChromeOption) *MacOSChrome {
 	chrome := &MacOSChrome{
 		theme: Theme{
-			TitleFont:         "SF Pro",
+			TitleFont:         "",
 			TitleBackground:   color.RGBA{R: 236, G: 236, B: 236, A: 255},
 			TitleText:         color.RGBA{R: 76, G: 76, B: 76, A: 255},
 			ControlsColor:     color.RGBA{R: 76, G: 76, B: 76, A: 255},
@@ -41,7 +41,7 @@ func NewMacOSChrome(opts ...ChromeOption) *MacOSChrome {
 			DarkTextColor:     color.RGBA{R: 236, G: 236, B: 236, A: 255},
 		},
 		darkTheme: Theme{
-			TitleFont:         "SF Pro",
+			TitleFont:         "",
 			TitleBackground:   color.RGBA{R: 48, G: 48, B: 48, A: 255},
 			TitleText:         color.RGBA{R: 236, G: 236, B: 236, A: 255},
 			ControlsColor:     color.RGBA{R: 236, G: 236, B: 236, A: 255},

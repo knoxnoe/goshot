@@ -6,6 +6,7 @@ import (
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/syntax"
 )
 
@@ -17,12 +18,23 @@ type LineRange struct {
 
 // CodeStyle represents all code styling options
 type CodeStyle struct {
+	// Syntax highlighting options
 	Theme               string
 	Language            string
 	TabWidth            int
 	ShowLineNumbers     bool
 	LineNumberRange     LineRange
-	LineHighlightRanges []LineRange // Ranges of lines to highlight
+	LineHighlightRanges []LineRange
+
+	// Rendering options
+	FontSize          float64
+	FontFamily        *fonts.Font
+	LineHeight        float64
+	PaddingX          int
+	PaddingY          int
+	MinWidth          int
+	MaxWidth          int
+	LineNumberPadding int
 }
 
 // Canvas represents a rendering canvas with all necessary configuration
@@ -35,7 +47,7 @@ type Canvas struct {
 // NewCanvas creates a new Canvas instance with default options
 func NewCanvas() *Canvas {
 	return &Canvas{
-		chrome:     chrome.NewWindows11Chrome(),
+		chrome:     chrome.NewMacOSChrome(),
 		background: nil, // No background by default
 		codeStyle: &CodeStyle{
 			Theme:               "dracula",
@@ -44,6 +56,14 @@ func NewCanvas() *Canvas {
 			ShowLineNumbers:     true,
 			LineNumberRange:     LineRange{},
 			LineHighlightRanges: []LineRange{},
+			FontSize:            0,
+			FontFamily:          nil,
+			LineHeight:          0,
+			PaddingX:            0,
+			PaddingY:            0,
+			MinWidth:            0,
+			MaxWidth:            0,
+			LineNumberPadding:   0,
 		},
 	}
 }
@@ -88,6 +108,37 @@ func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 		SetLineHighlightColor(highlighted.HighlightColor).
 		SetLineNumberColor(highlighted.LineNumberColor).
 		SetLineNumberBg(highlighted.GutterColor)
+
+	// Apply additional rendering options if specified
+	if c.codeStyle.FontFamily != nil {
+		if ttf, err := c.codeStyle.FontFamily.ToTrueType(); err == nil {
+			renderConfig.SetFontFamily(ttf)
+		}
+	}
+	if c.codeStyle.FontSize > 0 {
+		renderConfig.SetFontSize(c.codeStyle.FontSize)
+	}
+	if c.codeStyle.LineHeight > 0 {
+		renderConfig.SetLineHeight(c.codeStyle.LineHeight)
+	}
+	if c.codeStyle.PaddingX > 0 {
+		renderConfig.SetPaddingX(c.codeStyle.PaddingX)
+	}
+	if c.codeStyle.PaddingY > 0 {
+		renderConfig.SetPaddingY(c.codeStyle.PaddingY)
+	}
+	if c.codeStyle.MinWidth > 0 {
+		renderConfig.SetMinWidth(c.codeStyle.MinWidth)
+	}
+	if c.codeStyle.MaxWidth > 0 {
+		renderConfig.SetMaxWidth(c.codeStyle.MaxWidth)
+	}
+	if c.codeStyle.LineNumberPadding > 0 {
+		renderConfig.SetLineNumberPadding(c.codeStyle.LineNumberPadding)
+	}
+	if c.codeStyle.TabWidth > 0 {
+		renderConfig.SetTabWidth(c.codeStyle.TabWidth)
+	}
 
 	// Set line number range if specified
 	if c.codeStyle.LineNumberRange.Start > 0 || c.codeStyle.LineNumberRange.End > 0 {

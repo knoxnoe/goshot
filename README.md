@@ -74,8 +74,8 @@ func main() {
         ).
         SetCodeStyle(&render.CodeStyle{
             Language:        "go",
-            Theme:          "dracula",
-            TabWidth:       4,
+            Theme:           "dracula",
+            TabWidth:        4,
             ShowLineNumbers: true,
         })
 

@@ -69,7 +69,7 @@ func GetAvailableStyles() []string {
 // GetAvailableLanguages returns a list of all supported languages
 func GetAvailableLanguages(aliases bool) []string {
 	var langs []string
-	langs = append(langs, lexers.Names(false)...)
+	langs = append(langs, lexers.Names(aliases)...)
 	return langs
 }
 

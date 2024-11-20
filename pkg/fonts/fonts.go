@@ -113,7 +113,6 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 		return nil, fmt.Errorf("font %s not found", name)
 	}
 
-	log.Printf("Found font %s with %d variants", name, len(variants))
 	var selected *Font
 
 	if style == nil {
@@ -182,6 +181,12 @@ func GetFallback() (*Font, error) {
 	variantCacheMu.Unlock()
 
 	return font, nil
+}
+
+// IsFontAvailable is a super fast check to see if the given font is available on the system
+func IsFontAvailable(name string) bool {
+	_, err := GetFont(name, nil)
+	return err == nil
 }
 
 // matchStyleScore returns a score indicating how well two font styles match
@@ -379,7 +384,6 @@ func ListFonts() []string {
 	for _, dir := range paths {
 		// Skip directories that don't exist
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			fmt.Printf("Directory does not exist: %s\n", dir)
 			continue
 		}
 
@@ -406,8 +410,6 @@ func ListFonts() []string {
 
 			// Clean up common suffixes
 			name = cleanFontName(name)
-
-			fmt.Printf("Found font: %s (from %s)\n", name, path)
 
 			// Add to list if we haven't seen it
 			if !seen[name] {

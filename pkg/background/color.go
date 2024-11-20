@@ -67,10 +67,10 @@ func drawRoundedRect(dst draw.Image, r image.Rectangle, col color.Color, radius 
 
 	// Calculate center and radius of corner circles
 	corners := []image.Point{
-		{r.Min.X + int(radius), r.Min.Y + int(radius)},           // Top-left
-		{r.Max.X - int(radius) - 1, r.Min.Y + int(radius)},       // Top-right
-		{r.Min.X + int(radius), r.Max.Y - int(radius) - 1},       // Bottom-left
-		{r.Max.X - int(radius) - 1, r.Max.Y - int(radius) - 1},   // Bottom-right
+		{r.Min.X + int(radius), r.Min.Y + int(radius)},         // Top-left
+		{r.Max.X - int(radius) - 1, r.Min.Y + int(radius)},     // Top-right
+		{r.Min.X + int(radius), r.Max.Y - int(radius) - 1},     // Bottom-left
+		{r.Max.X - int(radius) - 1, r.Max.Y - int(radius) - 1}, // Bottom-right
 	}
 
 	// Fill the mask

@@ -50,8 +50,6 @@ func DrawTitleText(dc *gg.Context, title string, width, titleBarHeight int, text
 }
 
 func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c color.Color, fontName string) error {
-	log.Printf("Drawing title text: %q at size %.1f with font %s", text, size, fontName)
-
 	var font *fonts.Font
 	var err error
 
@@ -65,7 +63,6 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 
 	// If the requested font failed to load, use fallback
 	if font == nil {
-		log.Printf("Using fallback font")
 		font, err = fonts.GetFallback()
 		if err != nil {
 			return fmt.Errorf("failed to load fallback font: %v", err)
@@ -80,9 +77,6 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 	ctx.SetFontFace(face)
 	ctx.SetColor(c)
 
-	// Get text dimensions
-	w, h := ctx.MeasureString(text)
-
 	// Adjust Y position to account for font metrics and achieve true vertical centering
 	metrics := face.Metrics()
 	ascent := float64(metrics.Ascent.Round())
@@ -92,7 +86,6 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 
 	// Draw the text centered at the specified position
 	ctx.DrawStringAnchored(text, x, y, 0.5, 0.5)
-	log.Printf("Drew text at %.1f,%.1f (width: %.1f, height: %.1f)", x, y, w, h)
 
 	return nil
 }

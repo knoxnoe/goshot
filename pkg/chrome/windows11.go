@@ -32,7 +32,7 @@ type Windows11Chrome struct {
 func NewWindows11Chrome(opts ...ChromeOption) *Windows11Chrome {
 	chrome := &Windows11Chrome{
 		theme: Theme{
-			TitleFont:         "Segoe UI",
+			TitleFont:         "",
 			TitleBackground:   color.RGBA{R: 241, G: 244, B: 249, A: 255},
 			TitleText:         color.RGBA{R: 0, G: 0, B: 0, A: 255},
 			ControlsColor:     color.RGBA{R: 32, G: 32, B: 32, A: 255},
@@ -41,7 +41,7 @@ func NewWindows11Chrome(opts ...ChromeOption) *Windows11Chrome {
 			DarkTextColor:     color.RGBA{R: 255, G: 255, B: 255, A: 255},
 		},
 		darkTheme: Theme{
-			TitleFont:         "Segoe UI",
+			TitleFont:         "",
 			TitleBackground:   color.RGBA{R: 32, G: 32, B: 32, A: 255},
 			TitleText:         color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ControlsColor:     color.RGBA{R: 255, G: 255, B: 255, A: 255},
