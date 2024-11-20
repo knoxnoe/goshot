@@ -32,6 +32,9 @@ type RenderConfig struct {
 	LineNumberBg      color.Color // Background color for line numbers
 	StartLineNumber   int         // Line number to start from
 	EndLineNumber     int         // Line number to end at
+
+	// Line highlighting settings
+	LineHighlightColor color.Color // Color for highlighted lines
 }
 
 // DefaultConfig returns a default rendering configuration
@@ -54,6 +57,9 @@ func DefaultConfig() *RenderConfig {
 		LineNumberBg:      color.RGBA{R: 245, G: 245, B: 245, A: 255}, // Light gray background
 		StartLineNumber:   1,
 		EndLineNumber:     0,
+
+		// Line highlighting defaults
+		LineHighlightColor: color.RGBA{R: 68, G: 68, B: 68, A: 40}, // Semi-transparent dark color
 	}
 }
 
@@ -154,6 +160,12 @@ func (c *RenderConfig) SetStartLineNumber(line int) *RenderConfig {
 func (c *RenderConfig) GetEndLineNumber() int { return c.EndLineNumber }
 func (c *RenderConfig) SetEndLineNumber(line int) *RenderConfig {
 	c.EndLineNumber = line
+	return c
+}
+
+func (c *RenderConfig) GetLineHighlightColor() color.Color { return c.LineHighlightColor }
+func (c *RenderConfig) SetLineHighlightColor(col color.Color) *RenderConfig {
+	c.LineHighlightColor = col
 	return c
 }
 
@@ -410,6 +422,21 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		}
 	}
 
+	// Draw line highlights
+	for i, line := range lines {
+		if line.Highlight {
+			y := config.PaddingY + (i * lineHeight)
+			highlightRect := image.Rect(
+				lineNumberOffset,
+				y,
+				totalWidth,
+				y+lineHeight,
+			)
+			uniform := image.NewUniform(config.LineHighlightColor)
+			draw.Draw(img, highlightRect, uniform, image.Point{}, draw.Over)
+		}
+	}
+
 	// Draw line numbers if enabled
 	if config.ShowLineNumbers {
 		// Draw gutter background
@@ -444,7 +471,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 			if startLine < 1 {
 				startLine = 1
 			}
-			lineNum := fmt.Sprintf("%d", i+startLine-1)
+			lineNum := fmt.Sprintf("%d", startLine+i)
 			// Calculate position for right-aligned number
 			lineNumWidth := font.MeasureString(face, lineNum).Round()
 			x := lineNumberOffset - config.LineNumberPadding - lineNumWidth

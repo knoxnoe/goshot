@@ -7,7 +7,6 @@ import (
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
 	"github.com/watzon/goshot/pkg/render"
-	"github.com/watzon/goshot/pkg/syntax"
 )
 
 func main() {
@@ -15,27 +14,66 @@ func main() {
 	sampleCode := `package syntax
 
 import (
-	"bytes"
 	"fmt"
+	"image"
 	"image/color"
+	"image/draw"
+	"strings"
 
-	"github.com/alecthomas/chroma"
-	"github.com/alecthomas/chroma/lexers"
-	"github.com/alecthomas/chroma/styles"
+	"github.com/golang/freetype"
+	"github.com/golang/freetype/truetype"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/gomono"
 )
 
-// Style represents a syntax highlighting style
-type Style struct {
-	Name  string
-	Style *chroma.Style
+// RenderConfig holds configuration for rendering highlighted code to an image
+type RenderConfig struct {
+	FontSize   float64
+	LineHeight float64
+	PaddingX   int
+	PaddingY   int
+	FontFamily *truetype.Font
+	Background image.Image
+	TabWidth   int // Width of tab characters in spaces
+	MinWidth   int // Minimum width in pixels (0 means no minimum)
+	MaxWidth   int // Maximum width in pixels (0 means no limit)
+
+	// Line number settings
+	ShowLineNumbers   bool
+	LineNumberColor   color.Color
+	LineNumberPadding int         // Padding on either side of line numbers in pixels
+	LineNumberBg      color.Color // Background color for line numbers
+	StartLineNumber   int         // Line number to start from
+	EndLineNumber     int         // Line number to end at
+
+	// Line highlighting settings
+	LineHighlightColor color.Color // Color for highlighted lines
 }
 
-// Token represents a syntax-highlighted token
-type Token struct {
-	Text   string
-	Color  color.Color
-	Bold   bool
-	Italic bool
+// DefaultConfig returns a default rendering configuration
+func DefaultConfig() *RenderConfig {
+	f, _ := truetype.Parse(gomono.TTF)
+	return &RenderConfig{
+		FontSize:   14,
+		LineHeight: 1.5,
+		PaddingX:   10,
+		PaddingY:   10,
+		FontFamily: f,
+		TabWidth:   4,    // Default 4 spaces per tab
+		MinWidth:   200,  // Minimum width of 200px
+		MaxWidth:   1460, // Maximum width for 120 characters
+
+		// Line number defaults
+		ShowLineNumbers:   true,
+		LineNumberColor:   color.RGBA{R: 128, G: 128, B: 128, A: 255}, // Gray color
+		LineNumberPadding: 10,
+		LineNumberBg:      color.RGBA{R: 245, G: 245, B: 245, A: 255}, // Light gray background
+		StartLineNumber:   1,
+		EndLineNumber:     0,
+
+		// Line highlighting defaults
+		LineHighlightColor: color.RGBA{R: 68, G: 68, B: 68, A: 40}, // Semi-transparent dark color
+	}
 }`
 
 	// Sample configurations
@@ -50,19 +88,15 @@ type Token struct {
 				SetBackground(
 					background.NewColorBackground().
 						SetColor(color.RGBA{R: 25, G: 25, B: 25, A: 255}).
-						SetPaddingValue(40),
+						SetPadding(40),
 				).
-				SetSyntaxOptions(&syntax.HighlightOptions{
-					Style:        "dracula",
-					TabWidth:     4,
-					ShowLineNums: true,
-				}).
-				SetRenderConfig(
-					syntax.DefaultConfig().
-						SetShowLineNumbers(true).
-						SetStartLineNumber(3).
-						SetEndLineNumber(12),
-				),
+				SetCodeStyle(&render.CodeStyle{
+					Language:            "go",
+					Theme:               "dracula",
+					TabWidth:            4,
+					ShowLineNumbers:     true,
+					LineHighlightRanges: []render.LineRange{{Start: 18, End: 26}},
+				}),
 		},
 		{
 			name: "catppuccin-mocha",
@@ -74,14 +108,15 @@ type Token struct {
 				SetBackground(
 					background.NewColorBackground().
 						SetColor(color.RGBA{R: 120, G: 120, B: 120, A: 255}).
-						SetPaddingValue(40),
+						SetPadding(40),
 				).
-				SetSyntaxOptions(&syntax.HighlightOptions{
-					Style:        "catppuccin-mocha",
-					TabWidth:     4,
-					ShowLineNums: false,
-				}).
-				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(false)),
+				SetCodeStyle(&render.CodeStyle{
+					Language:            "go",
+					Theme:               "catppuccin-mocha",
+					TabWidth:            4,
+					ShowLineNumbers:     false,
+					LineHighlightRanges: []render.LineRange{{Start: 18, End: 26}},
+				}),
 		},
 		{
 			name: "catppuccin-latte",
@@ -91,12 +126,13 @@ type Token struct {
 					chrome.WithTitleBar(false),
 					chrome.WithCornerRadius(10),
 				)).
-				SetSyntaxOptions(&syntax.HighlightOptions{
-					Style:        "catppuccin-latte",
-					TabWidth:     4,
-					ShowLineNums: true,
-				}).
-				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(true)),
+				SetCodeStyle(&render.CodeStyle{
+					Language:            "go",
+					Theme:               "catppuccin-latte",
+					TabWidth:            4,
+					ShowLineNumbers:     true,
+					LineHighlightRanges: []render.LineRange{{Start: 18, End: 26}},
+				}),
 		},
 		{
 			name: "gruvbox",
@@ -109,14 +145,15 @@ type Token struct {
 				SetBackground(
 					background.NewColorBackground().
 						SetColor(color.RGBA{R: 70, G: 70, B: 70, A: 255}).
-						SetPaddingValue(40),
+						SetPadding(40),
 				).
-				SetSyntaxOptions(&syntax.HighlightOptions{
-					Style:        "gruvbox",
-					TabWidth:     4,
-					ShowLineNums: false,
-				}).
-				SetRenderConfig(syntax.DefaultConfig().SetShowLineNumbers(false)),
+				SetCodeStyle(&render.CodeStyle{
+					Language:            "go",
+					Theme:               "gruvbox",
+					TabWidth:            4,
+					ShowLineNumbers:     false,
+					LineHighlightRanges: []render.LineRange{{Start: 18, End: 26}},
+				}),
 		},
 	}
 

@@ -10,6 +10,9 @@ type Background interface {
 	// Render applies the background to the given content image
 	// It returns a new image with the background applied
 	Render(content image.Image) image.Image
+
+	// SetCornerRadius sets the corner radius for the background
+	SetCornerRadius(radius float64) Background
 }
 
 var (

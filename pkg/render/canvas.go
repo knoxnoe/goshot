@@ -1,6 +1,7 @@
 package render
 
 import (
+	"fmt"
 	"image"
 
 	"github.com/watzon/goshot/pkg/background"
@@ -8,12 +9,27 @@ import (
 	"github.com/watzon/goshot/pkg/syntax"
 )
 
+// LineRange represents a range of line numbers
+type LineRange struct {
+	Start int
+	End   int
+}
+
+// CodeStyle represents all code styling options
+type CodeStyle struct {
+	Theme               string
+	Language            string
+	TabWidth            int
+	ShowLineNumbers     bool
+	LineNumberRange     LineRange
+	LineHighlightRanges []LineRange // Ranges of lines to highlight
+}
+
 // Canvas represents a rendering canvas with all necessary configuration
 type Canvas struct {
-	chrome        chrome.Chrome
-	background    background.Background // Optional: if nil, no background will be applied
-	syntaxOptions *syntax.HighlightOptions
-	renderConfig  *syntax.RenderConfig
+	chrome     chrome.Chrome
+	background background.Background
+	codeStyle  *CodeStyle
 }
 
 // NewCanvas creates a new Canvas instance with default options
@@ -21,12 +37,14 @@ func NewCanvas() *Canvas {
 	return &Canvas{
 		chrome:     chrome.NewWindows11Chrome(),
 		background: nil, // No background by default
-		syntaxOptions: &syntax.HighlightOptions{
-			Style:        "dracula",
-			TabWidth:     4,
-			ShowLineNums: true,
+		codeStyle: &CodeStyle{
+			Theme:               "dracula",
+			Language:            "", // Empty means auto-detect
+			TabWidth:            4,
+			ShowLineNumbers:     true,
+			LineNumberRange:     LineRange{},
+			LineHighlightRanges: []LineRange{},
 		},
-		renderConfig: syntax.DefaultConfig().SetShowLineNumbers(true),
 	}
 }
 
@@ -42,42 +60,88 @@ func (c *Canvas) SetBackground(bg background.Background) *Canvas {
 	return c
 }
 
-// SetSyntaxOptions sets the syntax highlighting options
-func (c *Canvas) SetSyntaxOptions(opts *syntax.HighlightOptions) *Canvas {
-	c.syntaxOptions = opts
+// SetCodeStyle sets the code styling options
+func (c *Canvas) SetCodeStyle(style *CodeStyle) *Canvas {
+	c.codeStyle = style
 	return c
 }
 
-// SetRenderConfig sets the syntax render configuration
-func (c *Canvas) SetRenderConfig(config *syntax.RenderConfig) *Canvas {
-	c.renderConfig = config
-	return c
-}
-
-// RenderCode takes source code and renders it to an image using the canvas configuration
+// RenderCode renders the code to an image
 func (c *Canvas) RenderCode(code string) (image.Image, error) {
-	// Highlight the code
-	highlighted, err := syntax.Highlight(code, c.syntaxOptions)
-	if err != nil {
-		return nil, err
+	// Get highlighted code
+	highlightOpts := &syntax.HighlightOptions{
+		Style:            c.codeStyle.Theme,
+		Language:         c.codeStyle.Language,
+		TabWidth:         c.codeStyle.TabWidth,
+		ShowLineNums:     c.codeStyle.ShowLineNumbers,
+		HighlightedLines: flattenHighlightRanges(c.codeStyle.LineHighlightRanges),
 	}
 
-	// Render the highlighted code to an image
-	content, err := highlighted.RenderToImage(c.renderConfig)
+	highlighted, err := syntax.Highlight(code, highlightOpts)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error highlighting code: %v", err)
 	}
 
-	// Render with chrome first
-	content, err = c.chrome.Render(content)
-	if err != nil {
-		return nil, err
+	// Create render config using highlighted code's colors
+	renderConfig := syntax.DefaultConfig().
+		SetShowLineNumbers(c.codeStyle.ShowLineNumbers).
+		SetLineHighlightColor(highlighted.HighlightColor).
+		SetLineNumberColor(highlighted.LineNumberColor).
+		SetLineNumberBg(highlighted.GutterColor)
+
+	// Set line number range if specified
+	if c.codeStyle.LineNumberRange.Start > 0 || c.codeStyle.LineNumberRange.End > 0 {
+		renderConfig.StartLineNumber = c.codeStyle.LineNumberRange.Start
+		renderConfig.EndLineNumber = c.codeStyle.LineNumberRange.End
 	}
 
-	// Apply background if one is set
+	// Create the image
+	img, err := highlighted.RenderToImage(renderConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error rendering code: %v", err)
+	}
+
+	// Apply chrome if set
+	if c.chrome != nil {
+		img, err = c.chrome.Render(img)
+		if err != nil {
+			return nil, fmt.Errorf("error rendering chrome: %v", err)
+		}
+	}
+
+	// Apply background if set
 	if c.background != nil {
-		content = c.background.Render(content)
+		img = c.background.Render(img)
 	}
 
-	return content, nil
+	return img, nil
+}
+
+// flattenHighlightRanges converts a slice of LineRanges into a slice of line numbers
+func flattenHighlightRanges(ranges []LineRange) []int {
+	if len(ranges) == 0 {
+		return nil
+	}
+
+	// First, count how many lines we need
+	count := 0
+	for _, r := range ranges {
+		if r.End < r.Start {
+			continue // Skip invalid ranges
+		}
+		count += r.End - r.Start + 1
+	}
+
+	// Create and fill the slice
+	lines := make([]int, 0, count)
+	for _, r := range ranges {
+		if r.End < r.Start {
+			continue
+		}
+		for line := r.Start; line <= r.End; line++ {
+			lines = append(lines, line)
+		}
+	}
+
+	return lines
 }
