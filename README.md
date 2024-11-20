@@ -26,6 +26,9 @@ Goshot is a powerful Go library and CLI tool for creating beautiful code screens
 
 ### CLI Tool
 
+> [!NOTE]  
+> This is a work in progress and will be coming very soon.
+
 ```bash
 # Install without bundled fonts (uses system fonts)
 go install github.com/watzon/goshot/cmd/goshot@latest
