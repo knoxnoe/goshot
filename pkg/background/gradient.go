@@ -43,6 +43,7 @@ type GradientBackground struct {
 	intensity    float64 // Intensity modifier for special gradients (spiral tightness, star points)
 	padding      Padding
 	cornerRadius float64
+	shadow       Shadow
 }
 
 // NewGradientBackground creates a new GradientBackground
@@ -56,6 +57,7 @@ func NewGradientBackground(gradientType GradientType, stops ...GradientStop) Gra
 		intensity:    5.0, // Default intensity
 		padding:      NewPadding(20),
 		cornerRadius: 0,
+		shadow:       nil,
 	}
 }
 
@@ -101,6 +103,12 @@ func (bg GradientBackground) SetCornerRadius(radius float64) Background {
 	return bg
 }
 
+// SetShadow sets the shadow configuration for the background
+func (bg GradientBackground) SetShadow(shadow Shadow) Background {
+	bg.shadow = shadow
+	return bg
+}
+
 // interpolateColor interpolates between two colors based on t (0 to 1)
 func interpolateColor(c1, c2 color.Color, t float64) color.Color {
 	r1, g1, b1, a1 := c1.RGBA()
@@ -140,18 +148,25 @@ func (bg GradientBackground) getColorAt(pos float64) color.Color {
 
 // Render applies the gradient background to the given content image
 func (bg GradientBackground) Render(content image.Image) image.Image {
-	bounds := content.Bounds()
-	width := bounds.Dx() + bg.padding.Left + bg.padding.Right
-	height := bounds.Dy() + bg.padding.Top + bg.padding.Bottom
+	// Create a new image for the content with shadow
+	contentWithShadow := content
+	if bg.shadow != nil {
+		contentWithShadow = bg.shadow.Apply(content)
+	}
 
-	// Create a new RGBA image for the background
-	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	// Calculate total size including padding and shadow bounds
+	shadowBounds := contentWithShadow.Bounds()
+	width := shadowBounds.Dx() + bg.padding.Left + bg.padding.Right
+	height := shadowBounds.Dy() + bg.padding.Top + bg.padding.Bottom
+
+	// Create a new RGBA image for the gradient
+	gradientImg := image.NewRGBA(image.Rect(0, 0, width, height))
 
 	// Create a mask for rounded corners if needed
 	var mask *image.Alpha
 	if bg.cornerRadius > 0 {
-		mask = image.NewAlpha(dst.Bounds())
-		drawRoundedRect(mask, dst.Bounds(), color.Alpha{A: 255}, bg.cornerRadius)
+		mask = image.NewAlpha(gradientImg.Bounds())
+		drawRoundedRect(mask, gradientImg.Bounds(), color.Alpha{A: 255}, bg.cornerRadius)
 	}
 
 	// Calculate center coordinates in pixels
@@ -224,20 +239,20 @@ func (bg GradientBackground) Render(content image.Image) image.Image {
 				// Apply the rounded corner mask
 				_, _, _, a := mask.At(x, y).RGBA()
 				if a > 0 {
-					dst.Set(x, y, c)
+					gradientImg.Set(x, y, c)
 				}
 			} else {
-				dst.Set(x, y, c)
+				gradientImg.Set(x, y, c)
 			}
 		}
 	}
 
-	// Draw the content centered on the background
+	// Draw the content (with shadow) centered on the background
 	contentPos := image.Point{
-		X: bg.padding.Left,
-		Y: bg.padding.Top,
+		X: bg.padding.Left - shadowBounds.Min.X,
+		Y: bg.padding.Top - shadowBounds.Min.Y,
 	}
-	draw.Draw(dst, content.Bounds().Add(contentPos), content, bounds.Min, draw.Over)
+	draw.Draw(gradientImg, shadowBounds.Add(contentPos), contentWithShadow, shadowBounds.Min, draw.Over)
 
-	return dst
+	return gradientImg
 }

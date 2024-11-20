@@ -12,6 +12,7 @@ type ColorBackground struct {
 	color        color.Color
 	padding      Padding
 	cornerRadius float64
+	shadow       Shadow
 }
 
 // NewColorBackground creates a new ColorBackground with the given color
@@ -20,6 +21,7 @@ func NewColorBackground() ColorBackground {
 		color:        LightColor,
 		padding:      NewPadding(20),
 		cornerRadius: 0,
+		shadow:       nil,
 	}
 }
 
@@ -49,6 +51,12 @@ func (bg ColorBackground) SetPaddingDetailed(top, right, bottom, left int) Color
 // SetCornerRadius sets the corner radius for the background
 func (bg ColorBackground) SetCornerRadius(radius float64) Background {
 	bg.cornerRadius = radius
+	return bg
+}
+
+// SetShadow sets the shadow configuration for the background
+func (bg ColorBackground) SetShadow(shadow Shadow) Background {
+	bg.shadow = shadow
 	return bg
 }
 
@@ -104,6 +112,14 @@ func drawRoundedRect(dst draw.Image, r image.Rectangle, col color.Color, radius 
 func (bg ColorBackground) Render(content image.Image) image.Image {
 	bounds := content.Bounds()
 
+	// If shadow is configured, apply it to the content first
+	if bg.shadow != nil {
+		// Set the shadow's corner radius to match the background
+		bg.shadow.(*shadowImpl).cornerRadius = bg.cornerRadius
+		content = bg.shadow.Apply(content)
+		bounds = content.Bounds() // Update bounds to include shadow
+	}
+
 	// Calculate new dimensions including padding
 	width := bounds.Dx() + bg.padding.Left + bg.padding.Right
 	height := bounds.Dy() + bg.padding.Top + bg.padding.Bottom
@@ -118,7 +134,7 @@ func (bg ColorBackground) Render(content image.Image) image.Image {
 		draw.Draw(img, img.Bounds(), &image.Uniform{bg.color}, image.Point{}, draw.Src)
 	}
 
-	// Draw the content in the center (accounting for padding)
+	// Draw the content with shadow in the center (accounting for padding)
 	contentRect := image.Rect(
 		bg.padding.Left,
 		bg.padding.Top,

@@ -33,6 +33,7 @@ type ImageBackground struct {
 	opacity      float64
 	padding      Padding
 	cornerRadius float64
+	shadow       Shadow
 }
 
 // NewImageBackground creates a new ImageBackground
@@ -44,6 +45,7 @@ func NewImageBackground(img image.Image) ImageBackground {
 		opacity:      1.0,
 		padding:      NewPadding(20),
 		cornerRadius: 0,
+		shadow:       nil,
 	}
 }
 
@@ -88,6 +90,12 @@ func (bg ImageBackground) SetCornerRadius(radius float64) Background {
 	return bg
 }
 
+// SetShadow sets the shadow configuration for the background
+func (bg ImageBackground) SetShadow(shadow Shadow) Background {
+	bg.shadow = shadow
+	return bg
+}
+
 // scaleImage scales the image according to the scale mode
 func (bg ImageBackground) scaleImage(width, height int) image.Image {
 	bounds := bg.image.Bounds()
@@ -111,12 +119,12 @@ func (bg ImageBackground) scaleImage(width, height int) image.Image {
 			newHeight = int(float64(width) / srcRatio)
 		}
 		scaled := imaging.Resize(bg.image, newWidth, newHeight, imaging.Lanczos)
-		
+
 		// For ImageScaleCover, we center crop the image
 		if bg.scaleMode == ImageScaleCover {
 			return imaging.CropCenter(scaled, width, height)
 		}
-		
+
 		// For ImageScaleFill, we anchor to the top-left
 		return imaging.Crop(scaled, image.Rectangle{
 			Min: image.Point{0, 0},
@@ -162,78 +170,69 @@ func (bg ImageBackground) scaleImage(width, height int) image.Image {
 	return bg.image
 }
 
+// applyOpacity applies an opacity value to an RGBA image
+func applyOpacity(img *image.RGBA, opacity float64) *image.RGBA {
+	bounds := img.Bounds()
+	result := image.NewRGBA(bounds)
+
+	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+		for x := bounds.Min.X; x < bounds.Max.X; x++ {
+			c := img.RGBAAt(x, y)
+			c.A = uint8(float64(c.A) * opacity)
+			result.Set(x, y, c)
+		}
+	}
+
+	return result
+}
+
 // Render applies the image background to the given content image
 func (bg ImageBackground) Render(content image.Image) image.Image {
-	bounds := content.Bounds()
-	width := bounds.Dx() + bg.padding.Left + bg.padding.Right
-	height := bounds.Dy() + bg.padding.Top + bg.padding.Bottom
+	// Create a new image for the content with shadow
+	contentWithShadow := content
+	if bg.shadow != nil {
+		contentWithShadow = bg.shadow.Apply(content)
+	}
 
-	// Create a new RGBA image for the background
-	dst := image.NewRGBA(image.Rect(0, 0, width, height))
+	// Calculate total size including padding and shadow bounds
+	shadowBounds := contentWithShadow.Bounds()
+	width := shadowBounds.Dx() + bg.padding.Left + bg.padding.Right
+	height := shadowBounds.Dy() + bg.padding.Top + bg.padding.Bottom
 
-	// Scale the background image
-	scaled := bg.scaleImage(width, height)
+	// Scale and process the background image
+	scaledImg := bg.scaleImage(width, height)
 
-	// Apply blur if requested
 	if bg.blurRadius > 0 {
-		scaled = imaging.Blur(scaled, bg.blurRadius)
+		scaledImg = imaging.Blur(scaledImg, bg.blurRadius)
 	}
 
-	// Create a mask for rounded corners if needed
-	var mask *image.Alpha
-	if bg.cornerRadius > 0 {
-		mask = image.NewAlpha(dst.Bounds())
-		drawRoundedRect(mask, dst.Bounds(), color.Alpha{A: 255}, bg.cornerRadius)
-	}
+	// Create the final image
+	result := image.NewRGBA(image.Rect(0, 0, width, height))
 
-	// Convert scaled image to RGBA if it isn't already
-	scaledRGBA := image.NewRGBA(scaled.Bounds())
-	draw.Draw(scaledRGBA, scaledRGBA.Bounds(), scaled, scaled.Bounds().Min, draw.Src)
+	// Draw the scaled background image
+	draw.Draw(result, result.Bounds(), scaledImg, image.Point{}, draw.Over)
 
 	// Apply opacity if needed
 	if bg.opacity < 1.0 {
-		for y := 0; y < scaledRGBA.Bounds().Dy(); y++ {
-			for x := 0; x < scaledRGBA.Bounds().Dx(); x++ {
-				c := scaledRGBA.RGBAAt(x, y)
-				// For JPEG images, ensure full opacity before applying the opacity factor
-				if _, ok := bg.image.(*image.YCbCr); ok {
-					c.A = 255
-				}
-				c.A = uint8(float64(c.A) * bg.opacity)
-				scaledRGBA.Set(x, y, c)
-			}
-		}
-	} else if _, ok := bg.image.(*image.YCbCr); ok {
-		// For JPEG images with no opacity, ensure full opacity
-		for y := 0; y < scaledRGBA.Bounds().Dy(); y++ {
-			for x := 0; x < scaledRGBA.Bounds().Dx(); x++ {
-				c := scaledRGBA.RGBAAt(x, y)
-				c.A = 255
-				scaledRGBA.Set(x, y, c)
-			}
-		}
+		result = applyOpacity(result, bg.opacity)
 	}
 
-	// Draw the background image
-	if mask != nil {
-		draw.DrawMask(dst, dst.Bounds(), scaledRGBA, scaledRGBA.Bounds().Min, mask, mask.Bounds().Min, draw.Over)
-	} else {
-		draw.Draw(dst, dst.Bounds(), scaledRGBA, scaledRGBA.Bounds().Min, draw.Over)
+	// Apply rounded corners if needed
+	if bg.cornerRadius > 0 {
+		mask := image.NewRGBA(result.Bounds())
+		drawRoundedRect(mask, result.Bounds(), color.White, bg.cornerRadius)
+
+		final := image.NewRGBA(result.Bounds())
+		draw.DrawMask(final, result.Bounds(), result, image.Point{}, mask, image.Point{}, draw.Over)
+		result = final
 	}
 
-	// Draw the content centered on the background
+	// Draw the content (with shadow) centered on the background
 	contentPos := image.Point{
-		X: bg.padding.Left,
-		Y: bg.padding.Top,
+		X: bg.padding.Left - shadowBounds.Min.X,
+		Y: bg.padding.Top - shadowBounds.Min.Y,
 	}
-	contentRect := image.Rectangle{
-		Min: contentPos,
-		Max: image.Point{
-			X: contentPos.X + bounds.Dx(),
-			Y: contentPos.Y + bounds.Dy(),
-		},
-	}
-	draw.Draw(dst, contentRect, content, bounds.Min, draw.Over)
+	draw.Draw(result, shadowBounds.Add(contentPos), contentWithShadow, shadowBounds.Min, draw.Over)
 
-	return dst
+	return result
 }

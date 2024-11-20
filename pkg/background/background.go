@@ -13,6 +13,9 @@ type Background interface {
 
 	// SetCornerRadius sets the corner radius for the background
 	SetCornerRadius(radius float64) Background
+
+	// SetShadow sets the shadow configuration for the background
+	SetShadow(shadow Shadow) Background
 }
 
 var (
