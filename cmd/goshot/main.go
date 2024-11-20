@@ -24,17 +24,19 @@ var (
 	fromClipboard bool
 
 	// Appearance
-	windowChrome    string
-	darkMode        bool
-	theme           string
-	language        string
-	font            string
-	backgroundColor string
-	backgroundImage string
-	showLineNumbers bool
-	cornerRadius    float64
-	windowControls  bool
-	windowTitle     string
+	windowChrome       string
+	darkMode           bool
+	theme              string
+	language           string
+	font               string
+	backgroundColor    string
+	backgroundImage    string
+	backgroundImageFit string
+	showLineNumbers    bool
+	cornerRadius       float64
+	windowControls     bool
+	windowTitle        string
+	windowCornerRadius float64
 
 	// Padding and layout
 	tabWidth     int
@@ -43,7 +45,8 @@ var (
 	linePadding  int
 	padHoriz     int
 	padVert      int
-	codePadRight int
+	codePadVert  int
+	codePadHoriz int
 
 	// Shadow options
 	shadowBlurRadius float64
@@ -82,10 +85,12 @@ func init() {
 	renderCmd.Flags().StringVarP(&font, "font", "f", "", "The fallback font list. eg. 'Hack; SimSun=31'")
 	renderCmd.Flags().StringVarP(&backgroundColor, "background", "b", "#aaaaff", "Background color of the image")
 	renderCmd.Flags().StringVar(&backgroundImage, "background-image", "", "Background image")
+	renderCmd.Flags().StringVar(&backgroundImageFit, "background-image-fit", "cover", "Background image fit mode. Available modes: contain, cover, fill, stretch, tile")
 	renderCmd.Flags().BoolVar(&showLineNumbers, "no-line-number", false, "Hide the line number")
 	renderCmd.Flags().Float64Var(&cornerRadius, "corner-radius", 10.0, "Corner radius of the image")
 	renderCmd.Flags().BoolVar(&windowControls, "no-window-controls", false, "Hide the window controls")
 	renderCmd.Flags().StringVar(&windowTitle, "window-title", "", "Show window title")
+	renderCmd.Flags().Float64Var(&windowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
 
 	// Padding and layout flags
 	renderCmd.Flags().IntVar(&tabWidth, "tab-width", 4, "Tab width")
@@ -94,7 +99,8 @@ func init() {
 	renderCmd.Flags().IntVar(&linePadding, "line-pad", 2, "Pad between lines")
 	renderCmd.Flags().IntVar(&padHoriz, "pad-horiz", 80, "Pad horiz")
 	renderCmd.Flags().IntVar(&padVert, "pad-vert", 100, "Pad vert")
-	renderCmd.Flags().IntVar(&codePadRight, "code-pad-right", 25, "Add padding to the right of the code")
+	renderCmd.Flags().IntVar(&codePadVert, "code-pad-vert", 10, "Add padding to the X axis of the code")
+	renderCmd.Flags().IntVar(&codePadHoriz, "code-pad-horiz", 10, "Add padding to the Y axis of the code")
 
 	// Shadow flags
 	renderCmd.Flags().Float64Var(&shadowBlurRadius, "shadow-blur-radius", 0, "Blur radius of the shadow. (set it to 0 to hide shadow)")
@@ -200,9 +206,17 @@ func renderImage(cmd *cobra.Command, args []string) {
 	if !windowControls {
 		switch windowChrome {
 		case "macos":
-			canvas.SetChrome(chrome.NewMacOSChrome(chrome.WithDarkMode(darkMode), chrome.WithTitle(windowTitle)))
+			canvas.SetChrome(
+				chrome.NewMacOSChrome(chrome.WithDarkMode(darkMode),
+					chrome.WithTitle(windowTitle),
+					chrome.WithCornerRadius(windowCornerRadius)),
+			)
 		case "windows11":
-			canvas.SetChrome(chrome.NewWindows11Chrome(chrome.WithDarkMode(darkMode), chrome.WithTitle(windowTitle)))
+			canvas.SetChrome(
+				chrome.NewWindows11Chrome(chrome.WithDarkMode(darkMode),
+					chrome.WithTitle(windowTitle),
+					chrome.WithCornerRadius(windowCornerRadius)),
+			)
 		default:
 			fmt.Printf("invalid chrome style: %s", windowChrome)
 			return
@@ -223,7 +237,23 @@ func renderImage(cmd *cobra.Command, args []string) {
 			fmt.Printf("failed to decode background image: %v", err)
 			return
 		}
-		bg = background.NewImageBackground(backgroundImage)
+		var fit background.ImageScaleMode
+		switch backgroundImageFit {
+		case "fit":
+			fit = background.ImageScaleFit
+		case "cover":
+			fit = background.ImageScaleCover
+		case "fill":
+			fit = background.ImageScaleFill
+		case "stretch":
+			fit = background.ImageScaleStretch
+		case "tile":
+			fit = background.ImageScaleTile
+		default:
+			fmt.Printf("invalid background image fit mode: %s", backgroundImageFit)
+			return
+		}
+		bg = background.NewImageBackground(backgroundImage).SetScaleMode(fit)
 	} else {
 		bg = background.NewColorBackground().
 			SetColor(bgColor).
@@ -284,6 +314,8 @@ func renderImage(cmd *cobra.Command, args []string) {
 		FontFamily:      requestedFont,
 		FontSize:        fontSize,
 		TabWidth:        tabWidth,
+		PaddingX:        codePadHoriz,
+		PaddingY:        codePadVert,
 		ShowLineNumbers: !showLineNumbers,
 		LineNumberRange: render.LineRange{
 			Start: startLine,
