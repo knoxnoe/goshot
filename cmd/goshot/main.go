@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	"github.com/spf13/cobra"
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
@@ -171,9 +174,12 @@ func renderImage(cmd *cobra.Command, args []string) {
 
 	switch {
 	case fromClipboard:
-		// TODO: Implement clipboard reading
-		fmt.Printf("clipboard reading not implemented yet")
-		return
+		// Read from clipboard
+		code, err = clipboard.ReadAll()
+		if err != nil {
+			fmt.Printf("failed to read from clipboard: %v", err)
+			return
+		}
 	case len(args) > 0:
 		// Read from file
 		content, err := os.ReadFile(args[0])
@@ -338,13 +344,20 @@ func renderImage(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if outputFile == "" {
-		outputFile = "code.png"
+	if outputFile != "" {
+		if err := render.SaveAsPNG(img, outputFile); err != nil {
+			fmt.Printf("failed to save image: %v", err)
+			return
+		}
 	}
 
-	if err := render.SaveAsPNG(img, outputFile); err != nil {
-		fmt.Printf("failed to save image: %v", err)
-		return
+	if toClipboard {
+		pngBuf := bytes.NewBuffer(nil)
+		if err := png.Encode(pngBuf, img); err != nil {
+			fmt.Printf("failed to encode image to png: %v", err)
+			return
+		}
+		clipboard.WriteAll(pngBuf.String())
 	}
 }
 
