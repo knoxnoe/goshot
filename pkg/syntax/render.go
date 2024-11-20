@@ -351,8 +351,20 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		// Calculate width needed for the largest line number
 		lineCount := len(lines)
 		maxDigits := len(fmt.Sprintf("%d", lineCount))
+
+		// Add one extra digit width for better scaling at larger font sizes
+		maxDigits++
+
+		// Calculate base width for digits
 		lineNumberWidth := font.MeasureString(face, strings.Repeat("0", maxDigits)).Round()
-		lineNumberOffset = lineNumberWidth + config.LineNumberPadding*2
+
+		// Scale padding with font size
+		scaledPadding := int(float64(config.LineNumberPadding) * (config.FontSize / 14.0))
+		if scaledPadding < config.LineNumberPadding {
+			scaledPadding = config.LineNumberPadding
+		}
+
+		lineNumberOffset = lineNumberWidth + (scaledPadding * 2)
 	}
 
 	// Calculate max text width (total width minus padding and line numbers)

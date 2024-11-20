@@ -337,13 +337,6 @@ func renderImage(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// Handle output
-	if toClipboard {
-		// TODO: Implement clipboard writing
-		fmt.Printf("clipboard writing not implemented yet")
-		return
-	}
-
 	if outputFile != "" {
 		if err := render.SaveAsPNG(img, outputFile); err != nil {
 			fmt.Printf("failed to save image: %v", err)
