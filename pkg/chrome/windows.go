@@ -203,13 +203,15 @@ func (c *WindowsChrome) Render(content image.Image) (image.Image, error) {
 	// Create context for drawing
 	dc := gg.NewContext(width, height+titleBarHeight)
 
-	// Draw title bar background with corner radius
-	if c.titleBar {
-		// Draw title bar background
-		dc.SetColor(c.theme.Properties.TitleBackground)
-		dc.DrawRectangle(0, 0, float64(width), float64(titleBarHeight))
-		dc.Fill()
+	// Draw the base window with rounded corners
+	if err := DrawWindowBase(dc, width, height+titleBarHeight, c.cornerRadius,
+		c.theme.Properties.TitleBackground,
+		c.theme.Properties.TitleBackground,
+		titleBarHeight); err != nil {
+		return nil, err
+	}
 
+	if c.titleBar {
 		// Draw title text
 		if c.title != "" {
 			DrawTitleText(dc, c.title, width, titleBarHeight, c.theme.Properties.TitleText, winDefaultTitleFontSize, c.theme.Properties.TitleFont)

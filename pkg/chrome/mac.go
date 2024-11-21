@@ -274,16 +274,15 @@ func (c *MacChrome) Render(content image.Image) (image.Image, error) {
 	// Create context for drawing
 	dc := gg.NewContext(width, height+titleBarHeight)
 
-	// Draw title bar background with corner radius
-	if c.titleBar {
-		dc.SetColor(c.theme.Properties.TitleBackground)
-		if c.cornerRadius > 0 {
-			dc.DrawRoundedRectangle(0, 0, float64(width), float64(height+titleBarHeight), c.cornerRadius)
-		} else {
-			dc.DrawRectangle(0, 0, float64(width), float64(height+titleBarHeight))
-		}
-		dc.Fill()
+	// Draw the base window with rounded corners
+	if err := DrawWindowBase(dc, width, height+titleBarHeight, c.cornerRadius,
+		c.theme.Properties.TitleBackground,
+		c.theme.Properties.TitleBackground,
+		titleBarHeight); err != nil {
+		return nil, err
+	}
 
+	if c.titleBar {
 		// Draw window controls
 		c.renderWindowControls(dc, titleBarHeight)
 
