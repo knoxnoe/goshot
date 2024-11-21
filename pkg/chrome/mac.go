@@ -285,7 +285,7 @@ func (c *MacChrome) Render(content image.Image) (image.Image, error) {
 		dc.Fill()
 
 		// Draw window controls
-		c.renderWindowControls(dc, width, titleBarHeight)
+		c.renderWindowControls(dc, titleBarHeight)
 
 		// Draw title text if enabled
 		if c.title != "" {
@@ -299,7 +299,7 @@ func (c *MacChrome) Render(content image.Image) (image.Image, error) {
 	return dc.Image(), nil
 }
 
-func (c *MacChrome) renderWindowControls(dc *gg.Context, width, titleBarHeight int) {
+func (c *MacChrome) renderWindowControls(dc *gg.Context, titleBarHeight int) {
 	switch c.style {
 	case MacStyleSequoia, MacStyleSonoma, MacStyleVentura, MacStyleMonterey, MacStyleBigSur:
 		c.renderModernControls(dc, titleBarHeight)
