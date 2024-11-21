@@ -320,6 +320,15 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 
 	// Get lines
 	lines := h.Lines
+
+	// Validate that the requested line range is within bounds
+	if config.StartLineNumber > len(lines) {
+		return nil, fmt.Errorf("start line number %d is out of bounds (max: %d)", config.StartLineNumber, len(lines))
+	}
+	if config.EndLineNumber > len(lines) {
+		return nil, fmt.Errorf("end line number %d is out of bounds (max: %d)", config.EndLineNumber, len(lines))
+	}
+
 	if config.EndLineNumber > 0 {
 		startLineNumber := config.StartLineNumber
 		if startLineNumber < 1 {

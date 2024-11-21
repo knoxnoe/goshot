@@ -21,6 +21,9 @@ import (
 )
 
 var (
+	// Interactive mode
+	interactive bool
+
 	// Output options
 	outputFile    string
 	toClipboard   bool
@@ -82,6 +85,9 @@ func init() {
 		Short: "Render the code to an image",
 		Run:   renderImage,
 	}
+
+	// Interactive mode
+	renderCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode")
 
 	// Output flags
 	renderCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Write output image to specific location instead of cwd")
@@ -184,6 +190,57 @@ func main() {
 }
 
 func renderImage(cmd *cobra.Command, args []string) {
+	if interactive {
+		defaultConfig := &InteractiveConfig{
+			Theme:           theme,
+			WindowChrome:    windowChrome,
+			DarkMode:        darkMode,
+			Font:            font,
+			TabWidth:        tabWidth,
+			PadHoriz:        padHoriz,
+			PadVert:         padVert,
+			ShowLineNumbers: showLineNumbers,
+			CornerRadius:    cornerRadius,
+			WindowControls:  windowControls,
+			WindowTitle:     windowTitle,
+			ShadowBlur:      shadowBlurRadius,
+			ShadowColor:     shadowColor,
+			ShadowOffsetX:   shadowOffsetX,
+			ShadowOffsetY:   shadowOffsetY,
+			HighlightLines:  highlightLines,
+		}
+
+		config, err := StartInteractiveMode(defaultConfig)
+		if err != nil {
+			fmt.Printf("Error in interactive mode: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Update the global variables with the values from interactive mode
+		theme = config.Theme
+		windowChrome = config.WindowChrome
+		darkMode = config.DarkMode
+		font = config.Font
+		tabWidth = config.TabWidth
+		padHoriz = config.PadHoriz
+		padVert = config.PadVert
+		showLineNumbers = config.ShowLineNumbers
+		cornerRadius = config.CornerRadius
+		windowControls = config.WindowControls
+		windowTitle = config.WindowTitle
+		shadowBlurRadius = config.ShadowBlur
+		shadowColor = config.ShadowColor
+		shadowOffsetX = config.ShadowOffsetX
+		shadowOffsetY = config.ShadowOffsetY
+		highlightLines = config.HighlightLines
+		outputFile = config.Output
+		toClipboard = config.ToClipboard
+
+		if config.Input != "" {
+			args = []string{config.Input}
+		}
+	}
+
 	// Get the input code
 	var code string
 	var err error

@@ -49,9 +49,35 @@ func NewImageBackground(img image.Image) ImageBackground {
 	}
 }
 
+// NewImageBackgroundFromFile creates a new ImageBackground from a file path
+func NewImageBackgroundFromFile(path string) (ImageBackground, error) {
+	img, err := imaging.Open(path)
+	if err != nil {
+		return ImageBackground{}, err
+	}
+	return NewImageBackground(img), nil
+}
+
 // SetScaleMode sets the scaling mode for the image
 func (bg ImageBackground) SetScaleMode(mode ImageScaleMode) ImageBackground {
 	bg.scaleMode = mode
+	return bg
+}
+
+// SetScaleModeString sets the scaling mode for the image from a string
+func (bg ImageBackground) SetScaleModeString(mode string) ImageBackground {
+	switch mode {
+	case "fit":
+		bg.scaleMode = ImageScaleFit
+	case "fill":
+		bg.scaleMode = ImageScaleFill
+	case "cover":
+		bg.scaleMode = ImageScaleCover
+	case "stretch":
+		bg.scaleMode = ImageScaleStretch
+	case "tile":
+		bg.scaleMode = ImageScaleTile
+	}
 	return bg
 }
 
