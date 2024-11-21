@@ -43,14 +43,16 @@ type InteractiveConfig struct {
 	WindowTitle     string
 
 	// Padding and layout
-	TabWidth     int
-	StartLine    int
-	EndLine      int
-	LinePadding  int
-	PadHoriz     int
-	PadVert      int
-	CodePadVert  int
-	CodePadHoriz int
+	TabWidth      int
+	StartLine     int
+	EndLine       int
+	LinePadding   int
+	PadHoriz      int
+	PadVert       int
+	CodePadLeft   int
+	CodePadRight  int
+	CodePadTop    int
+	CodePadBottom int
 
 	// Shadow
 	ShadowBlur    float64
@@ -75,8 +77,10 @@ type model struct {
 	tabWidthStr      string
 	padHorizStr      string
 	padVertStr       string
-	codePadHorizStr  string
-	codePadVertStr   string
+	codePadLeftStr   string
+	codePadRightStr  string
+	codePadTopStr    string
+	codePadBottomStr string
 	shadowBlurStr    string
 	shadowOffsetXStr string
 	shadowOffsetYStr string
@@ -89,8 +93,10 @@ func initialModel(config *InteractiveConfig) model {
 		tabWidthStr:      fmt.Sprintf("%d", config.TabWidth),
 		padHorizStr:      fmt.Sprintf("%d", config.PadHoriz),
 		padVertStr:       fmt.Sprintf("%d", config.PadVert),
-		codePadHorizStr:  fmt.Sprintf("%d", config.CodePadHoriz),
-		codePadVertStr:   fmt.Sprintf("%d", config.CodePadVert),
+		codePadLeftStr:   fmt.Sprintf("%d", config.CodePadLeft),
+		codePadRightStr:  fmt.Sprintf("%d", config.CodePadRight),
+		codePadTopStr:    fmt.Sprintf("%d", config.CodePadTop),
+		codePadBottomStr: fmt.Sprintf("%d", config.CodePadBottom),
 		shadowBlurStr:    fmt.Sprintf("%.1f", config.ShadowBlur),
 		shadowOffsetXStr: fmt.Sprintf("%.1f", config.ShadowOffsetX),
 		shadowOffsetYStr: fmt.Sprintf("%.1f", config.ShadowOffsetY),
@@ -261,13 +267,23 @@ func StartInteractiveMode(defaultConfig *InteractiveConfig) (*InteractiveConfig,
 				Validate(validateInteger),
 
 			huh.NewInput().
-				Title("Code Horizontal Padding").
-				Value(&m.codePadHorizStr).
+				Title("Code Left Padding").
+				Value(&m.codePadLeftStr).
 				Validate(validateInteger),
 
 			huh.NewInput().
-				Title("Code Vertical Padding").
-				Value(&m.codePadVertStr).
+				Title("Code Right Padding").
+				Value(&m.codePadRightStr).
+				Validate(validateInteger),
+
+			huh.NewInput().
+				Title("Code Top Padding").
+				Value(&m.codePadTopStr).
+				Validate(validateInteger),
+
+			huh.NewInput().
+				Title("Code Bottom Padding").
+				Value(&m.codePadBottomStr).
 				Validate(validateInteger),
 
 			huh.NewInput().
@@ -319,11 +335,17 @@ func StartInteractiveMode(defaultConfig *InteractiveConfig) (*InteractiveConfig,
 	if v, err := strconv.Atoi(fm.padVertStr); err == nil {
 		fm.config.PadVert = v
 	}
-	if v, err := strconv.Atoi(fm.codePadHorizStr); err == nil {
-		fm.config.CodePadHoriz = v
+	if v, err := strconv.Atoi(fm.codePadLeftStr); err == nil {
+		fm.config.CodePadLeft = v
 	}
-	if v, err := strconv.Atoi(fm.codePadVertStr); err == nil {
-		fm.config.CodePadVert = v
+	if v, err := strconv.Atoi(fm.codePadRightStr); err == nil {
+		fm.config.CodePadRight = v
+	}
+	if v, err := strconv.Atoi(fm.codePadTopStr); err == nil {
+		fm.config.CodePadTop = v
+	}
+	if v, err := strconv.Atoi(fm.codePadBottomStr); err == nil {
+		fm.config.CodePadBottom = v
 	}
 	if v, err := strconv.ParseFloat(fm.shadowBlurStr, 64); err == nil {
 		fm.config.ShadowBlur = v
@@ -439,8 +461,10 @@ func (c *InteractiveConfig) WriteImage() error {
 		Language:        c.Language,
 		TabWidth:        c.TabWidth,
 		ShowLineNumbers: c.ShowLineNumbers,
-		PaddingX:        c.CodePadHoriz,
-		PaddingY:        c.CodePadVert,
+		PaddingLeft:     c.CodePadLeft,
+		PaddingRight:    c.CodePadRight,
+		PaddingTop:      c.CodePadTop,
+		PaddingBottom:   c.CodePadBottom,
 	}
 
 	if c.Font != "" {

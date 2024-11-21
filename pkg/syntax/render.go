@@ -15,16 +15,18 @@ import (
 
 // RenderConfig holds configuration for rendering highlighted code to an image
 type RenderConfig struct {
-	FontSize   float64
-	LineHeight float64
-	PaddingX   int
-	PaddingY   int
-	FontFace   font.Face
-	Font       *truetype.Font
-	Background image.Image
-	TabWidth   int // Width of tab characters in spaces
-	MinWidth   int // Minimum width in pixels (0 means no minimum)
-	MaxWidth   int // Maximum width in pixels (0 means no limit)
+	FontSize      float64
+	LineHeight    float64
+	PaddingLeft   int
+	PaddingRight  int
+	PaddingTop    int
+	PaddingBottom int
+	FontFace      font.Face
+	Font          *truetype.Font
+	Background    image.Image
+	TabWidth      int // Width of tab characters in spaces
+	MinWidth      int // Minimum width in pixels (0 means no minimum)
+	MaxWidth      int // Maximum width in pixels (0 means no limit)
 
 	// Line number settings
 	ShowLineNumbers   bool
@@ -47,15 +49,17 @@ func DefaultConfig() *RenderConfig {
 		DPI:  72,
 	})
 	return &RenderConfig{
-		LineHeight: 1.5,
-		PaddingX:   10,
-		PaddingY:   10,
-		FontFace:   face,
-		Font:       f,
-		FontSize:   size,
-		TabWidth:   4,    // Default 4 spaces per tab
-		MinWidth:   200,  // Minimum width of 200px
-		MaxWidth:   1460, // Maximum width for 120 characters
+		LineHeight:    1.5,
+		PaddingLeft:   10,
+		PaddingRight:  10,
+		PaddingTop:    10,
+		PaddingBottom: 10,
+		FontFace:      face,
+		Font:          f,
+		FontSize:      size,
+		TabWidth:      4,    // Default 4 spaces per tab
+		MinWidth:      200,  // Minimum width of 200px
+		MaxWidth:      1460, // Maximum width for 120 characters
 
 		// Line number defaults
 		ShowLineNumbers:   true,
@@ -77,15 +81,27 @@ func (c *RenderConfig) SetLineHeight(height float64) *RenderConfig {
 	return c
 }
 
-func (c *RenderConfig) GetPaddingX() int { return c.PaddingX }
-func (c *RenderConfig) SetPaddingX(padding int) *RenderConfig {
-	c.PaddingX = padding
+func (c *RenderConfig) GetPaddingLeft() int { return c.PaddingLeft }
+func (c *RenderConfig) SetPaddingLeft(padding int) *RenderConfig {
+	c.PaddingLeft = padding
 	return c
 }
 
-func (c *RenderConfig) GetPaddingY() int { return c.PaddingY }
-func (c *RenderConfig) SetPaddingY(padding int) *RenderConfig {
-	c.PaddingY = padding
+func (c *RenderConfig) GetPaddingRight() int { return c.PaddingRight }
+func (c *RenderConfig) SetPaddingRight(padding int) *RenderConfig {
+	c.PaddingRight = padding
+	return c
+}
+
+func (c *RenderConfig) GetPaddingTop() int { return c.PaddingTop }
+func (c *RenderConfig) SetPaddingTop(padding int) *RenderConfig {
+	c.PaddingTop = padding
+	return c
+}
+
+func (c *RenderConfig) GetPaddingBottom() int { return c.PaddingBottom }
+func (c *RenderConfig) SetPaddingBottom(padding int) *RenderConfig {
+	c.PaddingBottom = padding
 	return c
 }
 
@@ -224,7 +240,7 @@ func (c *RenderConfig) Clone() *RenderConfig {
 func (c *RenderConfig) GetMonospaceWidth(charCount int) int {
 	// Measure a single character (using 'M' as reference)
 	charWidth := font.MeasureString(c.FontFace, "M").Round()
-	return (charWidth * charCount) + (c.PaddingX * 2)
+	return (charWidth * charCount) + (c.PaddingLeft + c.PaddingRight)
 }
 
 // wrapTokens splits tokens into multiple lines if they exceed maxWidth
@@ -381,7 +397,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	// Calculate max text width (total width minus padding and line numbers)
 	maxTextWidth := 0
 	if config.MaxWidth > 0 {
-		maxTextWidth = config.MaxWidth - (config.PaddingX * 2)
+		maxTextWidth = config.MaxWidth - (config.PaddingLeft + config.PaddingRight)
 		if config.ShowLineNumbers {
 			maxTextWidth -= lineNumberOffset
 		}
@@ -411,7 +427,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	}
 
 	// Calculate final image dimensions
-	codeWidth := maxLineWidth + (config.PaddingX * 2)
+	codeWidth := maxLineWidth + (config.PaddingLeft + config.PaddingRight)
 
 	// Apply min/max width constraints
 	if config.MinWidth > 0 && codeWidth < config.MinWidth {
@@ -429,7 +445,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	// Calculate total height
 	metrics := config.FontFace.Metrics()
 	lineHeight := int(float64(metrics.Height.Round()) * config.LineHeight)
-	totalHeight := (lineHeight * len(wrappedLines)) + (config.PaddingY * 2)
+	totalHeight := (lineHeight * len(wrappedLines)) + (config.PaddingTop + config.PaddingBottom)
 
 	// Create the image
 	img := image.NewRGBA(image.Rect(0, 0, totalWidth, totalHeight))
@@ -448,7 +464,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	// Draw line highlights
 	for i, line := range lines {
 		if line.Highlight {
-			y := config.PaddingY + (i * lineHeight)
+			y := config.PaddingTop + (i * lineHeight)
 			highlightRect := image.Rect(
 				lineNumberOffset,
 				y,
@@ -497,7 +513,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 			// Calculate position for right-aligned number
 			lineNumWidth := font.MeasureString(config.FontFace, lineNum).Round()
 			x := lineNumberOffset - config.LineNumberPadding - lineNumWidth
-			y := config.PaddingY + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
+			y := config.PaddingTop + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
 			pt := freetype.Pt(x, y)
 			c.DrawString(lineNum, pt)
 		}
@@ -513,10 +529,10 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	// Draw each line
 	for i, line := range wrappedLines {
 		// Calculate baseline Y position
-		y := config.PaddingY + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
+		y := config.PaddingTop + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
 
 		// Draw code
-		x := config.PaddingX
+		x := config.PaddingLeft
 		if config.ShowLineNumbers {
 			x += lineNumberOffset
 		}

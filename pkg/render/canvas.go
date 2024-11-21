@@ -32,8 +32,10 @@ type CodeStyle struct {
 	FontSize          float64
 	FontFamily        *fonts.Font
 	LineHeight        float64
-	PaddingX          int
-	PaddingY          int
+	PaddingLeft       int
+	PaddingRight      int
+	PaddingTop        int
+	PaddingBottom     int
 	MinWidth          int
 	MaxWidth          int
 	LineNumberPadding int
@@ -42,10 +44,12 @@ type CodeStyle struct {
 // NewCodeStyle creates a new CodeStyle with default values
 func NewCodeStyle() *CodeStyle {
 	return &CodeStyle{
-		FontSize:   14,
-		LineHeight: 1.5,
-		PaddingX:   10,
-		PaddingY:   10,
+		FontSize:      14,
+		LineHeight:    1.5,
+		PaddingLeft:   10,
+		PaddingRight:  10,
+		PaddingTop:    10,
+		PaddingBottom: 10,
 	}
 }
 
@@ -66,7 +70,7 @@ func NewCanvas() *Canvas {
 	}
 
 	return &Canvas{
-		chrome:     chrome.NewMacChrome(chrome.MacStyleSequoia),
+		chrome:     chrome.NewBlankChrome(),
 		background: nil, // No background by default
 		codeStyle: &CodeStyle{
 			Theme:               "dracula",
@@ -78,8 +82,10 @@ func NewCanvas() *Canvas {
 			FontSize:            14,
 			FontFamily:          defaultFont,
 			LineHeight:          1.5,
-			PaddingX:            16,
-			PaddingY:            16,
+			PaddingLeft:         16,
+			PaddingRight:        16,
+			PaddingTop:          16,
+			PaddingBottom:       16,
 			MinWidth:            0,
 			MaxWidth:            0,
 			LineNumberPadding:   16,
@@ -184,11 +190,17 @@ func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 	if c.codeStyle.LineHeight > 0 {
 		renderConfig.SetLineHeight(c.codeStyle.LineHeight)
 	}
-	if c.codeStyle.PaddingX > 0 {
-		renderConfig.SetPaddingX(c.codeStyle.PaddingX)
+	if c.codeStyle.PaddingLeft > 0 {
+		renderConfig.SetPaddingLeft(c.codeStyle.PaddingLeft)
 	}
-	if c.codeStyle.PaddingY > 0 {
-		renderConfig.SetPaddingY(c.codeStyle.PaddingY)
+	if c.codeStyle.PaddingRight > 0 {
+		renderConfig.SetPaddingRight(c.codeStyle.PaddingRight)
+	}
+	if c.codeStyle.PaddingTop > 0 {
+		renderConfig.SetPaddingTop(c.codeStyle.PaddingTop)
+	}
+	if c.codeStyle.PaddingBottom > 0 {
+		renderConfig.SetPaddingBottom(c.codeStyle.PaddingBottom)
 	}
 	if c.codeStyle.MinWidth > 0 {
 		renderConfig.SetMinWidth(c.codeStyle.MinWidth)

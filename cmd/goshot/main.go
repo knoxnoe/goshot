@@ -48,7 +48,7 @@ var (
 	backgroundImageFit string
 	showLineNumbers    bool
 	cornerRadius       float64
-	windowControls     bool
+	noWindowControls   bool
 	windowTitle        string
 	windowCornerRadius float64
 
@@ -61,18 +61,21 @@ var (
 	gradientIntensity float64
 
 	// Padding and layout
-	tabWidth     int
-	startLine    int
-	endLine      int
-	linePadding  int
-	padHoriz     int
-	padVert      int
-	codePadVert  int
-	codePadHoriz int
+	tabWidth      int
+	startLine     int
+	endLine       int
+	linePadding   int
+	padHoriz      int
+	padVert       int
+	codePadTop    int
+	codePadBottom int
+	codePadLeft   int
+	codePadRight  int
 
 	// Shadow options
 	shadowBlurRadius float64
 	shadowColor      string
+	shadowSpread     float64
 	shadowOffsetX    float64
 	shadowOffsetY    float64
 
@@ -115,7 +118,7 @@ func init() {
 	renderCmd.Flags().StringVar(&backgroundImageFit, "background-image-fit", "cover", "Background image fit mode. Available modes: contain, cover, fill, stretch, tile")
 	renderCmd.Flags().BoolVar(&showLineNumbers, "no-line-number", false, "Hide the line number")
 	renderCmd.Flags().Float64Var(&cornerRadius, "corner-radius", 10.0, "Corner radius of the image")
-	renderCmd.Flags().BoolVar(&windowControls, "no-window-controls", false, "Hide the window controls")
+	renderCmd.Flags().BoolVar(&noWindowControls, "no-window-controls", false, "Hide the window controls")
 	renderCmd.Flags().StringVar(&windowTitle, "window-title", "", "Show window title")
 	renderCmd.Flags().Float64Var(&windowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
 
@@ -134,12 +137,15 @@ func init() {
 	renderCmd.Flags().IntVar(&linePadding, "line-pad", 2, "Pad between lines")
 	renderCmd.Flags().IntVar(&padHoriz, "pad-horiz", 80, "Pad horiz")
 	renderCmd.Flags().IntVar(&padVert, "pad-vert", 100, "Pad vert")
-	renderCmd.Flags().IntVar(&codePadVert, "code-pad-vert", 10, "Add padding to the X axis of the code")
-	renderCmd.Flags().IntVar(&codePadHoriz, "code-pad-horiz", 10, "Add padding to the Y axis of the code")
+	renderCmd.Flags().IntVar(&codePadTop, "code-pad-top", 10, "Add padding to the top of the code")
+	renderCmd.Flags().IntVar(&codePadBottom, "code-pad-bottom", 10, "Add padding to the bottom of the code")
+	renderCmd.Flags().IntVar(&codePadLeft, "code-pad-left", 10, "Add padding to the X axis of the code")
+	renderCmd.Flags().IntVar(&codePadRight, "code-pad-right", 10, "Add padding to the X axis of the code")
 
 	// Shadow flags
-	renderCmd.Flags().Float64Var(&shadowBlurRadius, "shadow-blur-radius", 0, "Blur radius of the shadow. (set it to 0 to hide shadow)")
-	renderCmd.Flags().StringVar(&shadowColor, "shadow-color", "#555555", "Color of shadow")
+	renderCmd.Flags().Float64Var(&shadowBlurRadius, "shadow-blur", 0, "Blur radius of the shadow. (set it to 0 to hide shadow)")
+	renderCmd.Flags().StringVar(&shadowColor, "shadow-color", "#00000033", "Color of shadow")
+	renderCmd.Flags().Float64Var(&shadowSpread, "shadow-spread", 0, "Spread radius of the shadow")
 	renderCmd.Flags().Float64Var(&shadowOffsetX, "shadow-offset-x", 0, "Shadow's offset in X axis")
 	renderCmd.Flags().Float64Var(&shadowOffsetY, "shadow-offset-y", 0, "Shadow's offset in Y axis")
 
@@ -218,7 +224,7 @@ func renderImage(cmd *cobra.Command, args []string) {
 			PadVert:         padVert,
 			ShowLineNumbers: showLineNumbers,
 			CornerRadius:    cornerRadius,
-			WindowControls:  windowControls,
+			WindowControls:  noWindowControls,
 			WindowTitle:     windowTitle,
 			ShadowBlur:      shadowBlurRadius,
 			ShadowColor:     shadowColor,
@@ -243,7 +249,7 @@ func renderImage(cmd *cobra.Command, args []string) {
 		padVert = config.PadVert
 		showLineNumbers = config.ShowLineNumbers
 		cornerRadius = config.CornerRadius
-		windowControls = config.WindowControls
+		noWindowControls = config.WindowControls
 		windowTitle = config.WindowTitle
 		shadowBlurRadius = config.ShadowBlur
 		shadowColor = config.ShadowColor
@@ -288,13 +294,6 @@ func renderImage(cmd *cobra.Command, args []string) {
 		code = string(content)
 	}
 
-	// Parse background color
-	bgColor, err := parseHexColor(backgroundColor)
-	if err != nil {
-		fmt.Printf("invalid background color: %v", err)
-		return
-	}
-
 	// Create canvas
 	canvas := render.NewCanvas()
 
@@ -304,7 +303,11 @@ func renderImage(cmd *cobra.Command, args []string) {
 		themeVariant = chrome.ThemeVariantDark
 	}
 
-	if !windowControls {
+	if noWindowControls {
+		window := chrome.NewBlankChrome().
+			SetCornerRadius(windowCornerRadius)
+		canvas.SetChrome(window)
+	} else {
 		var window chrome.Chrome
 		switch windowChrome {
 		case "mac":
@@ -393,30 +396,48 @@ func renderImage(cmd *cobra.Command, args []string) {
 			SetIntensity(gradientIntensity).
 			SetCenter(gradientCenterX, gradientCenterY).
 			SetPaddingDetailed(padHoriz, padVert, padHoriz, padVert)
-	} else {
+	} else if backgroundColor != "" {
+		// Parse background color
+		var bgColor color.Color
+		if backgroundColor == "transparent" {
+			bgColor = color.Transparent
+		} else {
+			bgColor, err = parseHexColor(backgroundColor)
+		}
+
+		if err != nil {
+			fmt.Printf("invalid background color: %v", err)
+			return
+		}
+
 		bg = background.NewColorBackground().
 			SetColor(bgColor).
 			SetPaddingDetailed(padHoriz, padVert, padVert, padHoriz)
 	}
 
-	// Configure shadow if enabled
-	if shadowBlurRadius > 0 {
-		shadowCol, err := parseHexColor(shadowColor)
-		if err != nil {
-			fmt.Printf("invalid shadow color: %v", err)
-			return
+	if bg != nil {
+		// Configure shadow if enabled
+		if shadowBlurRadius > 0 {
+			shadowCol, err := parseHexColor(shadowColor)
+			if err != nil {
+				fmt.Printf("invalid shadow color: %v", err)
+				return
+			}
+			bg = bg.SetShadow(background.NewShadow().
+				SetBlur(shadowBlurRadius).
+				SetOffset(shadowOffsetX, shadowOffsetY).
+				SetColor(shadowCol).
+				SetSpread(shadowSpread))
 		}
-		bg = bg.SetShadow(background.NewShadow().
-			SetBlur(shadowBlurRadius).
-			SetOffset(shadowOffsetX, shadowOffsetY).
-			SetColor(shadowCol))
-	}
 
-	if cornerRadius > 0 {
-		bg = bg.SetCornerRadius(cornerRadius)
-	}
+		// Configure corner radius
+		if cornerRadius > 0 {
+			bg = bg.SetCornerRadius(cornerRadius)
+		}
 
-	canvas.SetBackground(bg)
+		// Set background
+		canvas.SetBackground(bg)
+	}
 
 	// Configure highlighted lines
 	highlightedLines := []render.LineRange{}
@@ -453,8 +474,10 @@ func renderImage(cmd *cobra.Command, args []string) {
 		FontFamily:      requestedFont,
 		FontSize:        fontSize,
 		TabWidth:        tabWidth,
-		PaddingX:        codePadHoriz,
-		PaddingY:        codePadVert,
+		PaddingLeft:     codePadLeft,
+		PaddingRight:    codePadRight,
+		PaddingTop:      codePadTop,
+		PaddingBottom:   codePadBottom,
 		ShowLineNumbers: !showLineNumbers,
 		LineNumberRange: render.LineRange{
 			Start: startLine,
@@ -490,17 +513,25 @@ func renderImage(cmd *cobra.Command, args []string) {
 // Helper functions
 func parseHexColor(hex string) (color.Color, error) {
 	hex = strings.TrimPrefix(hex, "#")
-	if len(hex) != 6 {
+	var r, g, b, a uint8
+
+	switch len(hex) {
+	case 6:
+		_, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
+		if err != nil {
+			return nil, err
+		}
+		a = 255
+	case 8:
+		_, err := fmt.Sscanf(hex, "%02x%02x%02x%02x", &r, &g, &b, &a)
+		if err != nil {
+			return nil, err
+		}
+	default:
 		return nil, fmt.Errorf("invalid hex color: %s", hex)
 	}
 
-	var r, g, b uint8
-	_, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
-	if err != nil {
-		return nil, err
-	}
-
-	return color.RGBA{R: r, G: g, B: b, A: 255}, nil
+	return color.RGBA{R: r, G: g, B: b, A: a}, nil
 }
 
 func parseHighlightLines(input string) ([]int, error) {
