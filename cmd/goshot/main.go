@@ -122,7 +122,7 @@ func init() {
 	// Gradient flags
 	renderCmd.Flags().StringVar(&gradientType, "gradient-type", "", "Gradient type. Available types: linear, radial, angular, diamond, spiral, square, star")
 	renderCmd.Flags().StringArrayVar(&gradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops. eg. '--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100'")
-	renderCmd.Flags().Float64Var(&gradientAngle, "gradient-angle", 90, "Gradient angle in degrees")
+	renderCmd.Flags().Float64Var(&gradientAngle, "gradient-angle", 45, "Gradient angle in degrees")
 	renderCmd.Flags().Float64Var(&gradientCenterX, "gradient-center-x", 0.5, "Center X of the gradient")
 	renderCmd.Flags().Float64Var(&gradientCenterY, "gradient-center-y", 0.5, "Center Y of the gradient")
 	renderCmd.Flags().Float64Var(&gradientIntensity, "gradient-intensity", 5, "Intensity modifier for special gradients")
@@ -392,7 +392,7 @@ func renderImage(cmd *cobra.Command, args []string) {
 			SetCenter(gradientCenterX, gradientCenterY).
 			SetIntensity(gradientIntensity).
 			SetCenter(gradientCenterX, gradientCenterY).
-			SetPaddingDetailed(padHoriz, padVert, padVert, padHoriz)
+			SetPaddingDetailed(padHoriz, padVert, padHoriz, padVert)
 	} else {
 		bg = background.NewColorBackground().
 			SetColor(bgColor).
