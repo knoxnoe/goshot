@@ -1,7 +1,6 @@
 package chrome
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"math"
@@ -208,7 +207,6 @@ func (c *GNOMEChrome) SetThemeByName(name string, variant ThemeVariant) Chrome {
 			c.style = style
 		}
 	}
-	fmt.Println("Set theme:", c.themeName, c.variant, c.style)
 	return c
 }
 

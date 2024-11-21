@@ -30,22 +30,22 @@ type Shadow interface {
 
 // shadowImpl is the implementation of the Shadow interface
 type shadowImpl struct {
-	offsetX float64
-	offsetY float64
-	blur    float64
-	spread  float64
-	color   color.Color
+	offsetX      float64
+	offsetY      float64
+	blur         float64
+	spread       float64
+	color        color.Color
 	cornerRadius float64 // Added to match content's corner radius
 }
 
 // NewShadow creates a new shadow with default values
 func NewShadow() Shadow {
 	return &shadowImpl{
-		offsetX: 5,
-		offsetY: 5,
-		blur:    10,
-		spread:  0,
-		color:   color.RGBA{0, 0, 0, 128},
+		offsetX:      5,
+		offsetY:      5,
+		blur:         10,
+		spread:       0,
+		color:        color.RGBA{0, 0, 0, 128},
 		cornerRadius: 0,
 	}
 }
@@ -78,11 +78,11 @@ func (s *shadowImpl) SetCornerRadius(radius float64) Shadow {
 
 func (s *shadowImpl) Apply(img image.Image) image.Image {
 	bounds := img.Bounds()
-	
+
 	// Calculate the expanded bounds to accommodate shadow and offset
 	maxOffset := math.Max(math.Abs(s.offsetX), math.Abs(s.offsetY))
 	expandBy := int(math.Ceil(s.blur + s.spread + maxOffset))
-	
+
 	// Create new bounds that can accommodate the shadow in any direction
 	newBounds := image.Rectangle{
 		Min: image.Point{X: 0, Y: 0},

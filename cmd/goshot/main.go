@@ -559,7 +559,7 @@ func parseGradientStops(input []string) ([]background.GradientStop, error) {
 	for _, part := range input {
 		parts := strings.Split(part, ";")
 		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid gradient stop format: %s", part)
+			return nil, fmt.Errorf("invalid gradient stop format: %s; expected hex color and percentage (e.g., #ff0000;50)", part)
 		}
 
 		hexColor := strings.TrimSpace(parts[0])

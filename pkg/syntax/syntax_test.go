@@ -50,8 +50,8 @@ greet("World")`,
 			wantErr: false, // Should not error, falls back to default
 		},
 		{
-			name: "Default options",
-			code: `some random text`,
+			name:    "Default options",
+			code:    `some random text`,
 			options: nil, // Should use DefaultOptions()
 			wantErr: false,
 		},
