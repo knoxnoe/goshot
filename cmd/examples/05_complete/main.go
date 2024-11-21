@@ -31,15 +31,31 @@ func main() {
 	}
 }`
 
-	macOsChrome := chrome.NewMacOSChrome(
+	macOsChrome := chrome.NewMacChrome(
+		chrome.MacStyleSequoia,
 		chrome.WithTitle("Goshot Example"),
-		chrome.WithDarkMode(true),
+		chrome.WithVariant(chrome.ThemeVariantLight),
 		chrome.WithTitleBar(true),
 		chrome.WithCornerRadius(9))
 
-	windows11Chrome := chrome.NewWindows11Chrome(
+	macOsChromeDark := chrome.NewMacChrome(
+		chrome.MacStyleSequoia,
 		chrome.WithTitle("Goshot Example"),
-		chrome.WithDarkMode(true),
+		chrome.WithVariant(chrome.ThemeVariantDark),
+		chrome.WithTitleBar(true),
+		chrome.WithCornerRadius(9))
+
+	windows11Chrome := chrome.NewWindowsChrome(
+		chrome.WindowsStyleWin11,
+		chrome.WithTitle("Goshot Example"),
+		chrome.WithVariant(chrome.ThemeVariantLight),
+		chrome.WithTitleBar(true),
+		chrome.WithCornerRadius(8))
+
+	windows11ChromeDark := chrome.NewWindowsChrome(
+		chrome.WindowsStyleWin11,
+		chrome.WithTitle("Goshot Example"),
+		chrome.WithVariant(chrome.ThemeVariantDark),
 		chrome.WithTitleBar(true),
 		chrome.WithCornerRadius(8))
 
@@ -138,7 +154,7 @@ func main() {
 		LineNumberPadding: 20,
 	}
 
-	chromes := []chrome.Chrome{macOsChrome, windows11Chrome}
+	chromes := []chrome.Chrome{macOsChrome, windows11Chrome, macOsChromeDark, windows11ChromeDark}
 	backgrounds := []background.Background{
 		colorBackground,
 		linearGradientBackground,

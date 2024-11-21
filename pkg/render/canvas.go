@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/golang/freetype/truetype"
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/syntax"
+	"golang.org/x/image/font"
 )
 
 // LineRange represents a range of line numbers
@@ -37,6 +39,16 @@ type CodeStyle struct {
 	LineNumberPadding int
 }
 
+// NewCodeStyle creates a new CodeStyle with default values
+func NewCodeStyle() *CodeStyle {
+	return &CodeStyle{
+		FontSize:   14,
+		LineHeight: 1.5,
+		PaddingX:   10,
+		PaddingY:   10,
+	}
+}
+
 // Canvas represents a rendering canvas with all necessary configuration
 type Canvas struct {
 	chrome     chrome.Chrome
@@ -46,8 +58,15 @@ type Canvas struct {
 
 // NewCanvas creates a new Canvas instance with default options
 func NewCanvas() *Canvas {
+	// Get default monospace font
+	defaultFont, err := fonts.GetFallback(fonts.FallbackMono)
+	if err != nil {
+		// Fallback will be handled by the syntax package
+		defaultFont = nil
+	}
+
 	return &Canvas{
-		chrome:     chrome.NewMacOSChrome(),
+		chrome:     chrome.NewMacChrome(chrome.MacStyleSequoia),
 		background: nil, // No background by default
 		codeStyle: &CodeStyle{
 			Theme:               "dracula",
@@ -56,14 +75,14 @@ func NewCanvas() *Canvas {
 			ShowLineNumbers:     true,
 			LineNumberRange:     LineRange{},
 			LineHighlightRanges: []LineRange{},
-			FontSize:            0,
-			FontFamily:          nil,
-			LineHeight:          0,
-			PaddingX:            0,
-			PaddingY:            0,
+			FontSize:            14,
+			FontFamily:          defaultFont,
+			LineHeight:          1.5,
+			PaddingX:            16,
+			PaddingY:            16,
 			MinWidth:            0,
 			MaxWidth:            0,
-			LineNumberPadding:   0,
+			LineNumberPadding:   16,
 		},
 	}
 }
@@ -83,6 +102,38 @@ func (c *Canvas) SetBackground(bg background.Background) *Canvas {
 // SetCodeStyle sets the code styling options
 func (c *Canvas) SetCodeStyle(style *CodeStyle) *Canvas {
 	c.codeStyle = style
+	return c
+}
+
+// SetFont sets the font family to use for rendering
+func (c *Canvas) SetFont(fontName string) error {
+	font, err := fonts.GetFont(fontName, nil)
+	if err != nil {
+		return fmt.Errorf("error setting font: %v", err)
+	}
+	c.codeStyle.FontFamily = font
+	return nil
+}
+
+// SetFontWithStyle sets the font family with specific style options
+func (c *Canvas) SetFontWithStyle(fontName string, style *fonts.FontStyle) error {
+	font, err := fonts.GetFont(fontName, style)
+	if err != nil {
+		return fmt.Errorf("error setting font: %v", err)
+	}
+	c.codeStyle.FontFamily = font
+	return nil
+}
+
+// SetFontSize sets the font size in points
+func (c *Canvas) SetFontSize(size float64) *Canvas {
+	c.codeStyle.FontSize = size
+	return c
+}
+
+// SetLineHeight sets the line height as a multiplier of font size
+func (c *Canvas) SetLineHeight(height float64) *Canvas {
+	c.codeStyle.LineHeight = height
 	return c
 }
 
@@ -109,15 +160,27 @@ func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 		SetLineNumberColor(highlighted.LineNumberColor).
 		SetLineNumberBg(highlighted.GutterColor)
 
-	// Apply additional rendering options if specified
-	if c.codeStyle.FontFamily != nil {
-		if ttf, err := c.codeStyle.FontFamily.ToTrueType(); err == nil {
-			renderConfig.SetFontFamily(ttf)
+	// Apply font settings
+	if c.codeStyle.FontFamily == nil {
+		fallback, err := fonts.GetFallback(fonts.FallbackMono)
+		if err != nil {
+			return nil, fmt.Errorf("error getting fallback font: %v", err)
 		}
+		c.codeStyle.FontFamily = fallback
 	}
-	if c.codeStyle.FontSize > 0 {
-		renderConfig.SetFontSize(c.codeStyle.FontSize)
+
+	ttf, err := c.codeStyle.FontFamily.ToTrueType()
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert font: %v", err)
 	}
+
+	face := truetype.NewFace(ttf, &truetype.Options{
+		Size:    c.codeStyle.FontSize,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	renderConfig.SetFontFace(face, ttf, c.codeStyle.FontSize)
+
 	if c.codeStyle.LineHeight > 0 {
 		renderConfig.SetLineHeight(c.codeStyle.LineHeight)
 	}

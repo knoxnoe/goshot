@@ -19,7 +19,8 @@ type RenderConfig struct {
 	LineHeight float64
 	PaddingX   int
 	PaddingY   int
-	FontFamily *truetype.Font
+	FontFace   font.Face
+	Font       *truetype.Font
 	Background image.Image
 	TabWidth   int // Width of tab characters in spaces
 	MinWidth   int // Minimum width in pixels (0 means no minimum)
@@ -40,12 +41,18 @@ type RenderConfig struct {
 // DefaultConfig returns a default rendering configuration
 func DefaultConfig() *RenderConfig {
 	f, _ := truetype.Parse(gomono.TTF)
+	size := 14.0
+	face := truetype.NewFace(f, &truetype.Options{
+		Size: size,
+		DPI:  72,
+	})
 	return &RenderConfig{
-		FontSize:   14,
 		LineHeight: 1.5,
 		PaddingX:   10,
 		PaddingY:   10,
-		FontFamily: f,
+		FontFace:   face,
+		Font:       f,
+		FontSize:   size,
 		TabWidth:   4,    // Default 4 spaces per tab
 		MinWidth:   200,  // Minimum width of 200px
 		MaxWidth:   1460, // Maximum width for 120 characters
@@ -64,12 +71,6 @@ func DefaultConfig() *RenderConfig {
 }
 
 // Getters and setters for RenderConfig
-func (c *RenderConfig) GetFontSize() float64 { return c.FontSize }
-func (c *RenderConfig) SetFontSize(size float64) *RenderConfig {
-	c.FontSize = size
-	return c
-}
-
 func (c *RenderConfig) GetLineHeight() float64 { return c.LineHeight }
 func (c *RenderConfig) SetLineHeight(height float64) *RenderConfig {
 	c.LineHeight = height
@@ -88,10 +89,17 @@ func (c *RenderConfig) SetPaddingY(padding int) *RenderConfig {
 	return c
 }
 
-func (c *RenderConfig) GetFontFamily() *truetype.Font { return c.FontFamily }
-func (c *RenderConfig) SetFontFamily(font *truetype.Font) *RenderConfig {
-	c.FontFamily = font
+// SetFontFace sets both the font face and underlying TrueType font
+func (c *RenderConfig) SetFontFace(face font.Face, f *truetype.Font, size float64) *RenderConfig {
+	c.FontFace = face
+	c.Font = f
+	c.FontSize = size
 	return c
+}
+
+// GetFontFace returns the current font face
+func (c *RenderConfig) GetFontFace() font.Face {
+	return c.FontFace
 }
 
 func (c *RenderConfig) GetBackground() image.Image { return c.Background }
@@ -169,13 +177,16 @@ func (c *RenderConfig) SetLineHighlightColor(col color.Color) *RenderConfig {
 	return c
 }
 
-// WithFont is a convenience method to set the font family from TTF data
+// WithFont is a convenience method to set the font face from TTF data
 func (c *RenderConfig) WithFont(ttfData []byte) (*RenderConfig, error) {
 	font, err := truetype.Parse(ttfData)
 	if err != nil {
 		return c, fmt.Errorf("failed to parse font: %v", err)
 	}
-	return c.SetFontFamily(font), nil
+	return c.SetFontFace(truetype.NewFace(font, &truetype.Options{
+		Size: 14,
+		DPI:  72,
+	}), font, 14.0), nil
 }
 
 // Clone creates a deep copy of the RenderConfig
@@ -183,8 +194,11 @@ func (c *RenderConfig) Clone() *RenderConfig {
 	clone := *c // shallow copy
 
 	// Deep copy any pointer or interface fields
-	if c.FontFamily != nil {
-		clone.FontFamily = c.FontFamily // Font is immutable, so pointer copy is safe
+	if c.FontFace != nil {
+		clone.FontFace = c.FontFace // Font is immutable, so pointer copy is safe
+	}
+	if c.Font != nil {
+		clone.Font = c.Font // Font is immutable, so pointer copy is safe
 	}
 	if c.Background != nil {
 		switch bg := c.Background.(type) {
@@ -208,14 +222,8 @@ func (c *RenderConfig) Clone() *RenderConfig {
 
 // GetMonospaceWidth calculates the width needed for a given number of characters
 func (c *RenderConfig) GetMonospaceWidth(charCount int) int {
-	face := truetype.NewFace(c.FontFamily, &truetype.Options{
-		Size: c.FontSize,
-		DPI:  72,
-	})
-	defer face.Close()
-
 	// Measure a single character (using 'M' as reference)
-	charWidth := font.MeasureString(face, "M").Round()
+	charWidth := font.MeasureString(c.FontFace, "M").Round()
 	return (charWidth * charCount) + (c.PaddingX * 2)
 }
 
@@ -311,13 +319,6 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	wrappedLines := [][]Token{}
 	maxLineWidth := 0
 
-	// Create font face
-	face := truetype.NewFace(config.FontFamily, &truetype.Options{
-		Size: config.FontSize,
-		DPI:  72,
-	})
-	defer face.Close()
-
 	// Get lines
 	lines := h.Lines
 
@@ -365,10 +366,11 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		maxDigits++
 
 		// Calculate base width for digits
-		lineNumberWidth := font.MeasureString(face, strings.Repeat("0", maxDigits)).Round()
+		lineNumberWidth := font.MeasureString(config.FontFace, strings.Repeat("0", maxDigits)).Round()
 
 		// Scale padding with font size
-		scaledPadding := int(float64(config.LineNumberPadding) * (config.FontSize / 14.0))
+		scaledPadding := int(float64(config.LineNumberPadding) * (float64(config.FontFace.Metrics().Height.Round()) / 14.0))
+
 		if scaledPadding < config.LineNumberPadding {
 			scaledPadding = config.LineNumberPadding
 		}
@@ -389,7 +391,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	for _, line := range lines {
 		var wrapped [][]Token
 		if len(line.Tokens) > 0 {
-			wrapped = wrapTokens(line.Tokens, face, maxTextWidth, 0)
+			wrapped = wrapTokens(line.Tokens, config.FontFace, maxTextWidth, 0)
 		} else {
 			// For empty lines, add an empty token list
 			wrapped = [][]Token{{}}
@@ -400,7 +402,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		for _, wline := range wrapped {
 			lineWidth := 0
 			for _, token := range wline {
-				lineWidth += font.MeasureString(face, token.Text).Round()
+				lineWidth += font.MeasureString(config.FontFace, token.Text).Round()
 			}
 			if lineWidth > maxLineWidth {
 				maxLineWidth = lineWidth
@@ -425,7 +427,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	}
 
 	// Calculate total height
-	metrics := face.Metrics()
+	metrics := config.FontFace.Metrics()
 	lineHeight := int(float64(metrics.Height.Round()) * config.LineHeight)
 	totalHeight := (lineHeight * len(wrappedLines)) + (config.PaddingY * 2)
 
@@ -475,8 +477,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 
 		c := freetype.NewContext()
 		c.SetDPI(72)
-		c.SetFont(config.FontFamily)
-		c.SetFontSize(config.FontSize)
+		c.SetFont(config.Font)
 		c.SetClip(img.Bounds())
 		c.SetDst(img)
 
@@ -494,7 +495,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 			}
 			lineNum := fmt.Sprintf("%d", startLine+i)
 			// Calculate position for right-aligned number
-			lineNumWidth := font.MeasureString(face, lineNum).Round()
+			lineNumWidth := font.MeasureString(config.FontFace, lineNum).Round()
 			x := lineNumberOffset - config.LineNumberPadding - lineNumWidth
 			y := config.PaddingY + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
 			pt := freetype.Pt(x, y)
@@ -505,8 +506,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	// Create context for drawing text
 	c := freetype.NewContext()
 	c.SetDPI(72)
-	c.SetFont(config.FontFamily)
-	c.SetFontSize(config.FontSize)
+	c.SetFont(config.Font)
 	c.SetClip(img.Bounds())
 	c.SetDst(img)
 
@@ -524,7 +524,7 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 			c.SetSrc(image.NewUniform(token.Color))
 			pt := freetype.Pt(x, y)
 			c.DrawString(token.Text, pt)
-			x += font.MeasureString(face, token.Text).Round()
+			x += font.MeasureString(config.FontFace, token.Text).Round()
 		}
 	}
 

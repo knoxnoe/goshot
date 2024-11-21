@@ -379,23 +379,26 @@ func (c *InteractiveConfig) WriteImage() error {
 	r := render.NewCanvas()
 
 	// Configure window chrome
+	themeVariant := chrome.ThemeVariantLight
+	if c.DarkMode {
+		themeVariant = chrome.ThemeVariantDark
+	}
+
 	var window chrome.Chrome
 	switch c.WindowChrome {
 	case "macos":
-		window = chrome.NewMacOSChrome(
-			chrome.WithTitle(c.WindowTitle),
-			chrome.WithDarkMode(c.DarkMode),
-			chrome.WithTitleBar(c.WindowControls),
-			chrome.WithCornerRadius(c.CornerRadius),
-		)
+		window = chrome.NewMacChrome(chrome.MacStyleSequoia)
 	case "windows11":
-		window = chrome.NewWindows11Chrome(
-			chrome.WithTitle(c.WindowTitle),
-			chrome.WithDarkMode(c.DarkMode),
-			chrome.WithTitleBar(c.WindowControls),
-			chrome.WithCornerRadius(c.CornerRadius),
-		)
+		window = chrome.NewWindowsChrome(chrome.WindowsStyleWin11)
+	case "gnome":
+		window = chrome.NewGNOMEChrome(chrome.GNOMEStyleBreeze)
 	}
+
+	window.SetTitle(c.WindowTitle)
+	window.SetCornerRadius(c.CornerRadius)
+	window.SetTitleBar(c.WindowControls)
+	window.SetThemeByName(c.Theme, themeVariant)
+
 	r.SetChrome(window)
 
 	// Configure background

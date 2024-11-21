@@ -18,9 +18,16 @@ import (
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/render"
 	"github.com/watzon/goshot/pkg/syntax"
+	"github.com/watzon/goshot/pkg/version"
 )
 
 var (
+	// Build information - these will be populated by ldflags when building with make,
+	// otherwise we'll fall back to runtime.Version() and build info
+	// version = "dev"
+	// commit  = "none"
+	// date    = "unknown"
+
 	// Interactive mode
 	interactive bool
 
@@ -31,6 +38,7 @@ var (
 
 	// Appearance
 	windowChrome       string
+	chromeThemeName    string
 	darkMode           bool
 	theme              string
 	language           string
@@ -72,21 +80,22 @@ var (
 	highlightLines string
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "goshot [FLAGS] [OPTIONS] [FILE]",
-	Short: "Create beautiful code screenshots",
-	Long: `Goshot is a powerful tool for creating beautiful code screenshots with
-customizable window chrome, syntax highlighting, and backgrounds.`,
-}
+var rootCmd *cobra.Command
 
 func init() {
+	rootCmd = &cobra.Command{
+		Use:   "goshot",
+		Short: "Goshot is a powerful tool for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds.",
+		Run:   renderImage,
+	}
+
+	// Interactive mode
 	renderCmd := &cobra.Command{
 		Use:   "render",
 		Short: "Render the code to an image",
 		Run:   renderImage,
 	}
 
-	// Interactive mode
 	renderCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode")
 
 	// Output flags
@@ -95,7 +104,8 @@ func init() {
 	renderCmd.Flags().BoolVar(&fromClipboard, "from-clipboard", false, "Read input from clipboard")
 
 	// Appearance flags
-	renderCmd.Flags().StringVarP(&windowChrome, "chrome", "C", "macos", "Chrome style. Available styles: macos, windows11")
+	renderCmd.Flags().StringVarP(&windowChrome, "chrome", "C", "mac", "Chrome style. Available styles: mac, windows, gnome")
+	renderCmd.Flags().StringVarP(&chromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
 	renderCmd.Flags().BoolVarP(&darkMode, "dark-mode", "d", false, "Use dark mode")
 	renderCmd.Flags().StringVarP(&theme, "theme", "t", "dracula", "The syntax highlight theme. It can be a theme name or path to a .tmTheme file")
 	renderCmd.Flags().StringVarP(&language, "language", "l", "", "The language for syntax highlighting. You can use full name (\"Rust\") or file extension (\"rs\")")
@@ -139,6 +149,13 @@ func init() {
 	// Additional utility commands
 	rootCmd.AddCommand(
 		renderCmd,
+		&cobra.Command{
+			Use:   "version",
+			Short: "Print version information",
+			Run: func(cmd *cobra.Command, args []string) {
+				fmt.Printf("goshot %s\n", version.Version)
+			},
+		},
 		&cobra.Command{
 			Use:   "list-themes",
 			Short: "List all available themes",
@@ -282,24 +299,33 @@ func renderImage(cmd *cobra.Command, args []string) {
 	canvas := render.NewCanvas()
 
 	// Set window chrome
+	themeVariant := chrome.ThemeVariantLight
+	if darkMode {
+		themeVariant = chrome.ThemeVariantDark
+	}
+
 	if !windowControls {
+		var window chrome.Chrome
 		switch windowChrome {
-		case "macos":
-			canvas.SetChrome(
-				chrome.NewMacOSChrome(chrome.WithDarkMode(darkMode),
-					chrome.WithTitle(windowTitle),
-					chrome.WithCornerRadius(windowCornerRadius)),
-			)
-		case "windows11":
-			canvas.SetChrome(
-				chrome.NewWindows11Chrome(chrome.WithDarkMode(darkMode),
-					chrome.WithTitle(windowTitle),
-					chrome.WithCornerRadius(windowCornerRadius)),
-			)
+		case "mac":
+			window = chrome.NewMacChrome(chrome.MacStyleSequoia)
+		case "windows":
+			window = chrome.NewWindowsChrome(chrome.WindowsStyleWin11)
+		case "gnome":
+			window = chrome.NewGNOMEChrome(chrome.GNOMEStyleAdwaita)
 		default:
 			fmt.Printf("invalid chrome style: %s", windowChrome)
 			return
 		}
+
+		if chromeThemeName == "" {
+			window = window.SetVariant(themeVariant)
+		} else {
+			window = window.SetThemeByName(chromeThemeName, themeVariant)
+		}
+
+		window = window.SetTitle(windowTitle).SetCornerRadius(windowCornerRadius)
+		canvas.SetChrome(window)
 	}
 
 	// Set background

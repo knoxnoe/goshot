@@ -63,7 +63,7 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 
 	// If the requested font failed to load, use fallback
 	if font == nil {
-		font, err = fonts.GetFallback()
+		font, err = fonts.GetFallback(fonts.FallbackSans)
 		if err != nil {
 			return fmt.Errorf("failed to load fallback font: %v", err)
 		}

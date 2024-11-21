@@ -20,7 +20,9 @@ func main() {
 }`
 
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacOSChrome(chrome.WithTitle("Basic Example"))).
+		SetChrome(chrome.NewMacChrome(
+			chrome.MacStyleSequoia,
+			chrome.WithTitle("Basic Example"))).
 		SetBackground(
 			background.NewColorBackground().
 				SetColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).

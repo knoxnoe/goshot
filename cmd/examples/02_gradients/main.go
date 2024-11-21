@@ -32,12 +32,14 @@ func processItem(item string) error {
 	).SetAngle(45).SetPadding(40)
 
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacOSChrome(chrome.WithTitle("Gradient Example"))).
+		SetChrome(chrome.NewMacChrome(
+			chrome.MacStyleSequoia,
+			chrome.WithTitle("Gradient Example"))).
 		SetBackground(bg).
 		SetCodeStyle(&render.CodeStyle{
 			Language:        "go",
-			Theme:          "dracula",
-			TabWidth:       4,
+			Theme:           "dracula",
+			TabWidth:        4,
 			ShowLineNumbers: true,
 		})
 

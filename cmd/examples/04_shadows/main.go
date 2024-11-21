@@ -17,7 +17,9 @@ func main() {
 
 	// Create a canvas with a shadow
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacOSChrome(chrome.WithTitle("Shadow Example"))).
+		SetChrome(chrome.NewMacChrome(
+			chrome.MacStyleSequoia,
+			chrome.WithTitle("Shadow Example"))).
 		SetBackground(
 			background.NewColorBackground().
 				SetColor(color.RGBA{R: 40, G: 42, B: 54, A: 255}).

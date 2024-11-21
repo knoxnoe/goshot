@@ -43,9 +43,9 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 
 	canvas := render.NewCanvas().
 		SetChrome(
-			chrome.NewMacOSChrome(
+			chrome.NewMacChrome(
+				chrome.MacStyleSequoia,
 				chrome.WithTitle("Image Background Example"),
-				chrome.WithDarkMode(true),
 			)).
 		SetBackground(bg).
 		SetCodeStyle(&render.CodeStyle{

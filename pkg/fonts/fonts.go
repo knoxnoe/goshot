@@ -14,13 +14,11 @@ import (
 
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 )
 
-//go:embed fallback/LiberationSans-Regular.ttf
-var fallbackFont []byte
-
-// embeddedFS is used to store bundled fonts when built with bundle_fonts tag
-var embeddedFS *embed.FS
+//go:embed embedded
+var embeddedFonts embed.FS
 
 // fontCache caches loaded fonts to avoid repeated disk access
 var (
@@ -32,10 +30,11 @@ var (
 
 // FontStyle represents the style of a font
 type FontStyle struct {
-	Weight    FontWeight // Font weight
-	Italic    bool       // Whether the font is italicS
-	Condensed bool       // Whether the font is condensed
-	Mono      bool       // Whether the font is monospaced
+	Weight     FontWeight         // Font weight
+	Italic     bool               // Whether the font is italic
+	Condensed  bool               // Whether the font is condensed
+	Mono       bool               // Whether the font is monospaced
+	Variations map[string]float32 // Variable font variations
 }
 
 // FontWeight represents the weight of a font
@@ -55,12 +54,65 @@ const (
 	WeightHeavy                            // Heaviest font weight
 )
 
+// Common variable font axis tags
+const (
+	AxisWeight      = "wght" // Weight axis
+	AxisWidth       = "wdth" // Width axis
+	AxisSlant       = "slnt" // Slant axis
+	AxisItalic      = "ital" // Italic axis
+	AxisOpticalSize = "opsz" // Optical size axis
+	AxisTexture     = "TXTR" // Texture healing
+	AxisLigatures   = "liga" // Ligatures
+)
+
+// Monaspace specific ranges
+const (
+	MonaspaceWeightMin = 200
+	MonaspaceWeightMax = 800
+	MonaspaceWidthMin  = 100
+	MonaspaceWidthMax  = 125
+	MonaspaceSlantMin  = -11
+	MonaspaceSlantMax  = 1
+)
+
 // Font represents a loaded font with its metadata
 type Font struct {
-	Name     string    // Name of the font family
-	Data     []byte    // Raw font data
-	Style    FontStyle // Style information for this font variant
-	FilePath string    // Path to the font file on disk
+	Name     string         // Name of the font family
+	Font     *opentype.Font // Parsed font
+	Style    FontStyle      // Style information for this font variant
+	FilePath string         // Path to the font file on disk
+	Filename string         // Name of the font file
+}
+
+// ToTrueType converts the opentype.Font to a truetype.Font
+func (f *Font) ToTrueType() (*truetype.Font, error) {
+	if f == nil || f.Font == nil {
+		return nil, fmt.Errorf("invalid font")
+	}
+
+	// Get the raw font data
+	var data []byte
+	var err error
+
+	if f.FilePath != "" {
+		data, err = os.ReadFile(f.FilePath)
+	} else if f.Filename != "" {
+		data, err = embeddedFonts.ReadFile("embedded/" + f.Filename)
+	} else {
+		return nil, fmt.Errorf("no font data available")
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to read font data: %v", err)
+	}
+
+	// Parse as truetype font
+	ttf, err := truetype.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse truetype font: %v", err)
+	}
+
+	return ttf, nil
 }
 
 // systemFontPaths contains the default system font directories for different operating systems
@@ -149,38 +201,63 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 	return nil, fmt.Errorf("no suitable variant found for font %s", name)
 }
 
-// GetFallback returns the embedded Liberation Sans font as a fallback
-func GetFallback() (*Font, error) {
-	// Check if we already have the font in the cache
-	variantCacheMu.RLock()
-	if font, ok := variantCache["LiberationSans"]; ok {
-		variantCacheMu.RUnlock()
-		return font, nil
-	}
-	variantCacheMu.RUnlock()
+// FallbackVariant represents the type of fallback font to use
+type FallbackVariant string
 
-	// Parse the embedded font to validate it
-	_, err := truetype.Parse(fallbackFont)
+const (
+	FallbackSans FallbackVariant = "sans"
+	FallbackMono FallbackVariant = "mono"
+)
+
+// GetFallback returns either Monaspace Argon or Neon as the fallback font
+func GetFallback(variant FallbackVariant) (*Font, error) {
+	var filename string
+	var fontName string
+	var variations map[string]float32
+
+	switch variant {
+	case FallbackMono:
+		filename = "MonaspaceNeon-Regular.ttf"
+		fontName = "Monaspace Neon"
+		variations = map[string]float32{
+			AxisWeight:    400, // Regular weight
+			AxisWidth:     100, // Normal width
+			AxisSlant:     0,   // No slant
+			AxisTexture:   0,   // No texture healing
+			AxisLigatures: 0,   // Disable ligatures
+		}
+	default: // FallbackSans
+		filename = "MonaspaceArgon-Regular.ttf"
+		fontName = "Monaspace Argon"
+		variations = map[string]float32{
+			AxisWeight:    400, // Regular weight
+			AxisWidth:     100, // Normal width
+			AxisSlant:     0,   // No slant
+			AxisTexture:   0,   // No texture healing
+			AxisLigatures: 0,   // Disable ligatures
+		}
+	}
+
+	data, err := embeddedFonts.ReadFile("embedded/" + filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse fallback font: %v", err)
+		return nil, fmt.Errorf("failed to read %s: %v", fontName, err)
 	}
 
-	// Create the font struct
-	font := &Font{
-		Name: "LiberationSans",
-		Data: fallbackFont,
+	font, err := opentype.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse %s: %v", fontName, err)
+	}
+
+	return &Font{
+		Name: fontName,
+		Font: font,
 		Style: FontStyle{
-			Weight: WeightRegular,
-			Italic: false,
+			Weight:     WeightRegular,
+			Mono:       variant == FallbackMono,
+			Variations: variations,
 		},
-	}
-
-	// Cache the font
-	variantCacheMu.Lock()
-	variantCache["LiberationSans"] = font
-	variantCacheMu.Unlock()
-
-	return font, nil
+		Filename: filename,
+	}, nil
 }
 
 // IsFontAvailable is a super fast check to see if the given font is available on the system
@@ -223,6 +300,9 @@ func GetFontVariants(name string) ([]*Font, error) {
 	fontCacheMu.RLock()
 	if cached, ok := fontCache[name]; ok {
 		fontCacheMu.RUnlock()
+		if len(cached) == 0 {
+			return nil, fmt.Errorf("font %s not found", name)
+		}
 		return cached, nil
 	}
 	fontCacheMu.RUnlock()
@@ -230,29 +310,33 @@ func GetFontVariants(name string) ([]*Font, error) {
 	var variants []*Font
 
 	// Search embedded fonts first
-	if embeddedFS != nil {
-		entries, err := fs.ReadDir(embeddedFS, ".")
-		if err == nil {
-			for _, entry := range entries {
-				if entry.IsDir() {
+	entries, err := embeddedFonts.ReadDir("embedded")
+	if err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			cleanName := cleanFontName(entry.Name())
+			if strings.EqualFold(cleanName, name) {
+				data, err := embeddedFonts.ReadFile(filepath.Join("embedded", entry.Name()))
+				if err != nil {
 					continue
 				}
 
-				cleanName := cleanFontName(entry.Name())
-				if strings.EqualFold(cleanName, name) {
-					data, err := fs.ReadFile(embeddedFS, entry.Name())
-					if err != nil {
-						continue
-					}
-
-					font := &Font{
-						Name:     cleanName,
-						Data:     data,
-						Style:    extractFontStyle(entry.Name()),
-						FilePath: entry.Name(),
-					}
-					variants = append(variants, font)
+				font, err := opentype.Parse(data)
+				if err != nil {
+					continue
 				}
+
+				fontStyle := extractFontStyle(entry.Name())
+				variant := &Font{
+					Name:     cleanName,
+					Font:     font,
+					Style:    fontStyle,
+					Filename: entry.Name(),
+				}
+				variants = append(variants, variant)
 			}
 		}
 	}
@@ -295,13 +379,19 @@ func GetFontVariants(name string) ([]*Font, error) {
 					return nil
 				}
 
-				font := &Font{
+				font, err := opentype.Parse(data)
+				if err != nil {
+					return nil
+				}
+
+				fontStyle := extractFontStyle(info.Name())
+				variant := &Font{
 					Name:     cleanName,
-					Data:     data,
-					Style:    extractFontStyle(info.Name()),
+					Font:     font,
+					Style:    fontStyle,
 					FilePath: path,
 				}
-				variants = append(variants, font)
+				variants = append(variants, variant)
 			}
 
 			return nil
@@ -316,6 +406,10 @@ func GetFontVariants(name string) ([]*Font, error) {
 	fontCacheMu.Lock()
 	fontCache[name] = variants
 	fontCacheMu.Unlock()
+
+	if len(variants) == 0 {
+		return nil, fmt.Errorf("font %s not found", name)
+	}
 
 	return variants, nil
 }
@@ -364,6 +458,21 @@ func extractFontStyle(filename string) FontStyle {
 func ListFonts() []string {
 	var fonts []string
 	seen := make(map[string]bool)
+
+	// List embedded fonts first
+	if entries, err := embeddedFonts.ReadDir("embedded"); err == nil {
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			name := cleanFontName(entry.Name())
+			if !seen[name] {
+				seen[name] = true
+				fonts = append(fonts, name)
+			}
+		}
+	}
 
 	paths := systemFontPaths[runtime.GOOS]
 	if len(paths) == 0 {
@@ -555,36 +664,59 @@ func cleanFontName(name string) string {
 	return name
 }
 
+// FontFS returns a filesystem containing all available fonts
 func FontFS() fs.FS {
-	if embeddedFS != nil {
-		return embeddedFS
+	if runtime.GOOS == "windows" {
+		return &systemFontFS{root: filepath.Join(os.Getenv("WINDIR"), "Fonts")}
 	}
 
-	// Return the first available system font directory
-	paths := systemFontPaths[runtime.GOOS]
-	if len(paths) > 0 {
-		return systemFontFS{root: paths[0]}
+	// Create a multi-FS that combines system fonts with embedded fonts
+	return &multiFS{
+		filesystems: []fs.FS{
+			&systemFontFS{root: systemFontPaths[runtime.GOOS][0]},
+			&embeddedFonts,
+		},
 	}
-	return nil
 }
 
-// ToTrueType converts the Font to a truetype.Font
-func (f *Font) ToTrueType() (*truetype.Font, error) {
-	if f == nil || len(f.Data) == 0 {
-		return nil, fmt.Errorf("invalid font or empty font data")
+// multiFS implements fs.FS and combines multiple filesystems
+type multiFS struct {
+	filesystems []fs.FS
+}
+
+func (m *multiFS) Open(name string) (fs.File, error) {
+	for _, fs := range m.filesystems {
+		if f, err := fs.Open(name); err == nil {
+			return f, nil
+		}
 	}
-	return truetype.Parse(f.Data)
+	return nil, os.ErrNotExist
 }
 
 // GetFontFace returns a font.Face with the specified size
 func (f *Font) GetFontFace(size float64) (font.Face, error) {
-	font, err := f.ToTrueType()
-	if err != nil {
-		return nil, err
+	// TODO: The current x/image/font/opentype package does not support variable font features.
+	// We need to implement our own font rendering system that can properly handle OpenType
+	// variable fonts and their variations (weight, width, slant, etc). This would involve:
+	// 1. Parsing the OpenType font tables (fvar, gvar, etc.)
+	// 2. Implementing variation interpolation
+	// 3. Creating a custom font.Face implementation
+	if f == nil || f.Font == nil {
+		return nil, fmt.Errorf("invalid font")
 	}
-	return truetype.NewFace(font, &truetype.Options{
+
+	// Create face options
+	opts := &opentype.FaceOptions{
 		Size: size,
-	}), nil
+		DPI:  72,
+	}
+
+	face, err := opentype.NewFace(f.Font, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create font face: %v", err)
+	}
+
+	return face, nil
 }
 
 // ClearCache clears the font cache
