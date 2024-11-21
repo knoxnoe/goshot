@@ -99,7 +99,7 @@ func init() {
 	renderCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode")
 
 	// Output flags
-	renderCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Write output image to specific location instead of cwd")
+	renderCmd.Flags().StringVarP(&outputFile, "output", "o", "output.png", "Write output image to specific location instead of cwd")
 	renderCmd.Flags().BoolVarP(&toClipboard, "to-clipboard", "c", false, "Copy the output image to clipboard")
 	renderCmd.Flags().BoolVar(&fromClipboard, "from-clipboard", false, "Read input from clipboard")
 
@@ -120,7 +120,7 @@ func init() {
 	renderCmd.Flags().Float64Var(&windowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
 
 	// Gradient flags
-	renderCmd.Flags().StringVar(&gradientType, "gradient-type", "linear", "Gradient type. Available types: linear, radial")
+	renderCmd.Flags().StringVar(&gradientType, "gradient-type", "", "Gradient type. Available types: linear, radial, angular, diamond, spiral, square, star")
 	renderCmd.Flags().StringArrayVar(&gradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops. eg. '--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100'")
 	renderCmd.Flags().Float64Var(&gradientAngle, "gradient-angle", 90, "Gradient angle in degrees")
 	renderCmd.Flags().Float64Var(&gradientCenterX, "gradient-center-x", 0.5, "Center X of the gradient")

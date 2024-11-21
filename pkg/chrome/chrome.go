@@ -26,8 +26,9 @@ const (
 type ThemeProperties struct {
 	// Basic properties
 	TitleFont         string
-	TitleBackground   color.Color
 	TitleText         color.Color
+	TitleFontSize     float64
+	TitleBackground   color.Color
 	ControlsColor     color.Color
 	ContentBackground color.Color
 	TextColor         color.Color

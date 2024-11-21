@@ -702,7 +702,11 @@ func (f *Font) GetFontFace(size float64) (font.Face, error) {
 	// 2. Implementing variation interpolation
 	// 3. Creating a custom font.Face implementation
 	if f == nil || f.Font == nil {
-		return nil, fmt.Errorf("invalid font")
+		fallback, err := GetFallback(FallbackMono)
+		if err != nil {
+			return nil, err
+		}
+		return fallback.GetFontFace(size)
 	}
 
 	// Create face options

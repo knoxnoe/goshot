@@ -46,10 +46,7 @@ func DrawTitleText(dc *gg.Context, title string, width, titleBarHeight int, text
 	// Draw text centered horizontally and vertically in the title bar
 	x := float64(width) / 2
 	y := float64(titleBarHeight) / 2
-	return drawTitleText(dc, title, x, y, fontSize, textColor, fontName)
-}
 
-func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c color.Color, fontName string) error {
 	var font *fonts.Font
 	var err error
 
@@ -69,23 +66,22 @@ func drawTitleText(ctx *gg.Context, text string, x, y float64, size float64, c c
 		}
 	}
 
-	face, err := font.GetFontFace(size)
+	face, err := font.GetFontFace(fontSize)
 	if err != nil {
 		return fmt.Errorf("failed to create font face: %v", err)
 	}
 
-	ctx.SetFontFace(face)
-	ctx.SetColor(c)
+	dc.SetFontFace(face)
+	dc.SetColor(textColor)
 
 	// Adjust Y position to account for font metrics and achieve true vertical centering
 	metrics := face.Metrics()
-	ascent := float64(metrics.Ascent.Round())
-	descent := float64(metrics.Descent.Round())
-	adjustment := (ascent - descent) / 2
-	y = y - adjustment/2
+	height := float64(metrics.Height.Round())
+	// Move up by a quarter of the total height to achieve true vertical centering
+	y = y - height/4
 
 	// Draw the text centered at the specified position
-	ctx.DrawStringAnchored(text, x, y, 0.5, 0.5)
+	dc.DrawStringAnchored(title, x, y, 0.5, 0.5)
 
 	return nil
 }

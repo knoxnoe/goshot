@@ -1,8 +1,10 @@
 package chrome
 
 import (
+	"fmt"
 	"image"
 	"image/color"
+	"math"
 
 	"github.com/fogleman/gg"
 )
@@ -11,7 +13,7 @@ const (
 	gnomeDefaultTitleBarHeight = 32
 	gnomeDefaultControlSize    = 16
 	gnomeDefaultControlSpacing = 8
-	gnomeDefaultTitleFontSize  = 14
+	gnomeDefaultTitleFontSize  = 18
 	gnomeDefaultControlPadding = 8
 	gnomeDefaultCornerRadius   = 8.0
 	adwaitaTitleBarHeight      = 45
@@ -19,7 +21,7 @@ const (
 	adwaitaControlSpacing      = 16
 	adwaitaLeftPadding         = 8
 	adwaitaRightPadding        = 16
-	adwaitaTitleFontSize       = 13
+	adwaitaTitleFontSize       = 14
 	adwaitaCornerRadius        = 12
 )
 
@@ -56,6 +58,7 @@ func registerAdwaitaTheme() {
 		Name:    "adwaita",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
+			TitleFontSize:      18,
 			TitleBackground:    color.RGBA{R: 242, G: 242, B: 242, A: 255},
 			TitleText:          color.RGBA{R: 40, G: 40, B: 40, A: 255},
 			ControlsColor:      color.RGBA{R: 40, G: 40, B: 40, A: 255},
@@ -81,6 +84,7 @@ func registerAdwaitaTheme() {
 		Name:    "adwaita",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
+			TitleFontSize:      18,
 			TitleBackground:    color.RGBA{R: 36, G: 36, B: 36, A: 255},
 			TitleText:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ControlsColor:      color.RGBA{R: 255, G: 255, B: 255, A: 255},
@@ -111,8 +115,9 @@ func registerBreezeTheme() {
 		Name:    "breeze",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleBackground:    color.RGBA{R: 242, G: 242, B: 242, A: 255},
-			TitleText:          color.RGBA{R: 40, G: 40, B: 40, A: 255},
+			TitleFontSize:      14,
+			TitleBackground:    color.RGBA{R: 205, G: 209, B: 214, A: 255},
+			TitleText:          color.RGBA{R: 109, G: 113, B: 120, A: 255},
 			ControlsColor:      color.RGBA{R: 40, G: 40, B: 40, A: 255},
 			ContentBackground:  color.White,
 			TextColor:          color.RGBA{R: 40, G: 40, B: 40, A: 255},
@@ -125,7 +130,7 @@ func registerBreezeTheme() {
 			CornerRadius:       adwaitaCornerRadius,
 			BorderWidth:        1.0,
 			CustomProperties: map[string]any{
-				"style": GNOMEStyleAdwaita,
+				"style": GNOMEStyleBreeze,
 			},
 		},
 	}
@@ -136,7 +141,8 @@ func registerBreezeTheme() {
 		Name:    "breeze",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleBackground:    color.RGBA{R: 36, G: 36, B: 36, A: 255},
+			TitleFontSize:      14,
+			TitleBackground:    color.RGBA{R: 68, G: 82, B: 91, A: 255},
 			TitleText:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ControlsColor:      color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ContentBackground:  color.RGBA{R: 32, G: 32, B: 32, A: 255},
@@ -150,7 +156,7 @@ func registerBreezeTheme() {
 			CornerRadius:       adwaitaCornerRadius,
 			BorderWidth:        1.0,
 			CustomProperties: map[string]any{
-				"style": GNOMEStyleAdwaita,
+				"style": GNOMEStyleBreeze,
 			},
 		},
 	}
@@ -202,6 +208,7 @@ func (c *GNOMEChrome) SetThemeByName(name string, variant ThemeVariant) Chrome {
 			c.style = style
 		}
 	}
+	fmt.Println("Set theme:", c.themeName, c.variant, c.style)
 	return c
 }
 
@@ -257,7 +264,7 @@ func (c *GNOMEChrome) Render(content image.Image) (image.Image, error) {
 
 		// Draw title text if enabled
 		if c.title != "" {
-			DrawTitleText(dc, c.title, width, titleBarHeight, c.theme.Properties.TitleText, gnomeDefaultTitleFontSize, c.theme.Properties.TitleFont)
+			DrawTitleText(dc, c.title, width, titleBarHeight, c.theme.Properties.TitleText, c.theme.Properties.TitleFontSize, c.theme.Properties.TitleFont)
 		}
 
 		// Draw window controls based on style
@@ -316,23 +323,50 @@ func (c *GNOMEChrome) renderAdwaitaControls(dc *gg.Context, width, titleBarHeigh
 
 func (c *GNOMEChrome) renderBreezeControls(dc *gg.Context, width, titleBarHeight int) {
 	controlY := float64(titleBarHeight-gnomeDefaultControlSize) / 2
-	closeX := float64(width) - gnomeDefaultControlSize - gnomeDefaultControlPadding
-	maximizeX := closeX - gnomeDefaultControlSize - gnomeDefaultControlSpacing
-	minimizeX := maximizeX - gnomeDefaultControlSize - gnomeDefaultControlSpacing
+	closeX := float64(width) - float64(gnomeDefaultControlSize) - float64(gnomeDefaultControlPadding)
+	minimizeX := closeX - float64(gnomeDefaultControlSize) - float64(gnomeDefaultControlSpacing)
 
 	// Draw controls
 	dc.SetColor(c.theme.Properties.ControlsColor)
 
-	// Close button
-	dc.DrawCircle(closeX+gnomeDefaultControlSize/2, controlY+gnomeDefaultControlSize/2, gnomeDefaultControlSize/2)
+	// Close button circle with X
+	dc.DrawCircle(closeX+float64(gnomeDefaultControlSize)/2, controlY+float64(gnomeDefaultControlSize)/2, float64(gnomeDefaultControlSize)/2)
+	dc.Fill()
+
+	// Draw X inside close button (rotated 45 degrees)
+	xPadding := float64(gnomeDefaultControlSize) / 4
+	centerX := closeX + float64(gnomeDefaultControlSize)/2
+	centerY := controlY + float64(gnomeDefaultControlSize)/2
+	xSize := float64(gnomeDefaultControlSize)/2 - xPadding
+
+	// Draw rotated X with title background color
+	dc.SetColor(c.theme.Properties.TitleBackground)
+	dc.DrawLine(
+		centerX-xSize/math.Sqrt2,
+		centerY-xSize/math.Sqrt2,
+		centerX+xSize/math.Sqrt2,
+		centerY+xSize/math.Sqrt2,
+	)
+	dc.DrawLine(
+		centerX-xSize/math.Sqrt2,
+		centerY+xSize/math.Sqrt2,
+		centerX+xSize/math.Sqrt2,
+		centerY-xSize/math.Sqrt2,
+	)
 	dc.Stroke()
 
-	// Maximize button
-	dc.DrawRectangle(maximizeX, controlY, gnomeDefaultControlSize, gnomeDefaultControlSize)
-	dc.Stroke()
+	// Reset color for minimize button
+	dc.SetColor(c.theme.Properties.ControlsColor)
 
-	// Minimize button
-	dc.DrawLine(minimizeX, controlY+gnomeDefaultControlSize/2, minimizeX+gnomeDefaultControlSize, controlY+gnomeDefaultControlSize/2)
+	// Minimize button (downward caret)
+	caretSize := float64(gnomeDefaultControlSize) / 2
+	centerX = minimizeX + float64(gnomeDefaultControlSize)/2
+	centerY = controlY + float64(gnomeDefaultControlSize)/2
+
+	dc.DrawLine(centerX-caretSize/2, centerY-caretSize/4,
+		centerX, centerY+caretSize/4)
+	dc.DrawLine(centerX, centerY+caretSize/4,
+		centerX+caretSize/2, centerY-caretSize/4)
 	dc.Stroke()
 }
 
