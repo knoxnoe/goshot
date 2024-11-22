@@ -36,6 +36,10 @@ go install github.com/watzon/goshot/cmd/goshot@latest
 go get github.com/watzon/goshot
 ```
 
+The binary is also available through the following package managers:
+
+[![Packaging status](https://repology.org/badge/vertical-allrepos/goshot.svg)](https://repology.org/project/goshot/versions)
+
 ### Basic Usage
 
 ```go
