@@ -139,6 +139,9 @@ jobs:
           sudo apt-get install -y debhelper devscripts dput-ng
 
       - name: Build source package
+        env:
+          DEBEMAIL: "cawatson1993@gmail.com"
+          DEBFULLNAME: "Chris Watson"
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           # Copy debian directory to the right place
@@ -146,7 +149,7 @@ jobs:
           # Update changelog
           dch -v $VERSION-1 --distribution jammy "New upstream release"
           # Build source package
-          dpkg-buildpackage -S -sa -k${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
+          dpkg-buildpackage -S -sa -d -k${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
 
       - name: Upload to PPA
         run: |
