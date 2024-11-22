@@ -25,6 +25,7 @@ jobs:
           sed -i "s/const Version = \".*\"/const Version = \"${GITHUB_REF_NAME}\"/" pkg/version/version.go
           sed -i "s/const Revision = \".*\"/const Revision = \"${GITHUB_SHA}\"/" pkg/version/version.go
           sed -i "s/const Date = \".*\"/const Date = \"${DATE}\"/" pkg/version/version.go
+          sed -i "s/Standards-Version: \*.*\"/Standards-Version: \"${GITHUB_REF_NAME}\"/" build/debian/control
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git add pkg/version/version.go
@@ -110,3 +111,44 @@ jobs:
           commit_email: ${{ secrets.AUR_EMAIL }}
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
+
+  publish-ppa:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+
+      - name: Import GPG key
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
+          git_user_signingkey: true
+          git_commit_gpgsign: true
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y debhelper devscripts dput-ng
+
+      - name: Build source package
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          # Copy debian directory to the right place
+          cp -r build/debian debian
+          # Update changelog
+          dch -v $VERSION-1 --distribution jammy "New upstream release"
+          # Build source package
+          dpkg-buildpackage -S -sa -k${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
+
+      - name: Upload to PPA
+        run: |
+          echo "allow_unsigned_uploads = no" > ~/.dput.cf
+          dput ppa:watzon/goshot ../goshot_*_source.changes

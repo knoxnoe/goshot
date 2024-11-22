@@ -1,0 +1,10 @@
+goshot (0.4.6-1) unstable; urgency=medium
+
+  * Initial release
+  * Features include:
+    - Beautiful syntax highlighting with multiple themes
+    - Customizable window chrome styles
+    - Various background options
+    - Multiple export formats
+
+ -- Chris Watson <cawatson1993@gmail.com>  Thu, 22 Feb 2024 12:00:00 +0000

@@ -1,0 +1,22 @@
+Source: goshot
+Section: utils
+Priority: optional
+Maintainer: Chris Watson <cawatson1993@gmail.com>
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21)
+Standards-Version: 4.6.0
+Homepage: https://github.com/watzon/goshot
+Rules-Requires-Root: no
+
+Package: goshot
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Suggests: wl-clipboard, xclip
+Description: CLI tool for creating beautiful code screenshots
+ Goshot is a powerful CLI tool and library for creating beautiful code
+ screenshots with customizable features. It offers syntax highlighting
+ with multiple themes, customizable window chrome styles, various
+ background options including gradients and images, and supports
+ multiple export formats.
+ .
+ Perfect for developers looking to create stunning visual representations
+ of their code for documentation, presentations, or social media sharing.
