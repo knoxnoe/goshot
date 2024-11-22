@@ -18,6 +18,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
       - name: Update version
         run: |
           sed -i "s/const Version = \".*\"/const Version = \"${GITHUB_REF_NAME}\"/" pkg/version/version.go
@@ -25,9 +26,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git add pkg/version/version.go
           git commit -m "Update version to ${GITHUB_REF_NAME}"
-          git push
+          git push origin main
 
   goreleaser:
+    needs: update-version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
