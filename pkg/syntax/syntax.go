@@ -251,10 +251,30 @@ func (f *customFormatter) addToken(text string, tokenType chroma.TokenType, styl
 	expandedText, newColumn := expandTabs(text, f.currentColumn, f.tabWidth)
 	f.currentColumn = newColumn
 
+	// Check if this token should be joined with the previous token
+	if len(f.currentLine.Tokens) > 0 && shouldJoinTokens(tokenType) {
+		lastToken := &f.currentLine.Tokens[len(f.currentLine.Tokens)-1]
+		// Only join if the colors match
+		if lastToken.Color == f.createToken(expandedText, tokenType, style).Color {
+			lastToken.Text += expandedText
+			return
+		}
+	}
+
 	// Add the token with expanded text
 	if expandedText != "" {
 		f.currentLine.Tokens = append(f.currentLine.Tokens, f.createToken(expandedText, tokenType, style))
 	}
+}
+
+func shouldJoinTokens(tokenType chroma.TokenType) bool {
+	// Join punctuation tokens
+	return tokenType == chroma.Punctuation ||
+		strings.Contains(tokenType.String(), "Punctuation") ||
+		strings.Contains(tokenType.String(), "Operator") ||
+		strings.Contains(tokenType.String(), "Parenthesis") ||
+		strings.Contains(tokenType.String(), "Bracket") ||
+		strings.Contains(tokenType.String(), "Brace")
 }
 
 func (f *customFormatter) processNewlines(text string, tokenType chroma.TokenType, style *chroma.Style) (Line, bool) {

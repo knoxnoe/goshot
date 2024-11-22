@@ -11,6 +11,7 @@ import (
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gomono"
+	"golang.org/x/image/math/fixed"
 )
 
 // RenderConfig holds configuration for rendering highlighted code to an image
@@ -536,13 +537,44 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		if config.ShowLineNumbers {
 			x += lineNumberOffset
 		}
+
+		// Check if we're using a monospace font
+		isMono := isMonospace(config.FontFace)
+
+		// Draw each token
 		for _, token := range line {
 			c.SetSrc(image.NewUniform(token.Color))
 			pt := freetype.Pt(x, y)
-			c.DrawString(token.Text, pt)
-			x += font.MeasureString(config.FontFace, token.Text).Round()
+
+			if isMono {
+				// For monospace fonts, use fixed character spacing
+				charWidth := font.MeasureString(config.FontFace, "M").Round()
+				for _, ch := range token.Text {
+					c.DrawString(string(ch), pt)
+					pt.X += fixed.Int26_6(charWidth << 6)
+				}
+				x += charWidth * len([]rune(token.Text))
+			} else {
+				// For proportional fonts, use natural spacing
+				c.DrawString(token.Text, pt)
+				x += font.MeasureString(config.FontFace, token.Text).Round()
+			}
 		}
 	}
 
 	return img, nil
+}
+
+// isMonospace checks if the font is monospace by sampling character widths
+func isMonospace(fontFace font.Face) bool {
+	isMonospace := true
+	samples := []rune{'M', 'i', '.', ' ', 'W'}
+	width := font.MeasureString(fontFace, string(samples[0])).Round()
+	for _, ch := range samples[1:] {
+		if font.MeasureString(fontFace, string(ch)).Round() != width {
+			isMonospace = false
+			break
+		}
+	}
+	return isMonospace
 }

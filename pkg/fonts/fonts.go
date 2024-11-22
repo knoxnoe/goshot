@@ -65,16 +65,6 @@ const (
 	AxisLigatures   = "liga" // Ligatures
 )
 
-// Monaspace specific ranges
-const (
-	MonaspaceWeightMin = 200
-	MonaspaceWeightMax = 800
-	MonaspaceWidthMin  = 100
-	MonaspaceWidthMax  = 125
-	MonaspaceSlantMin  = -11
-	MonaspaceSlantMax  = 1
-)
-
 // Font represents a loaded font with its metadata
 type Font struct {
 	Name     string         // Name of the font family
@@ -209,7 +199,7 @@ const (
 	FallbackMono FallbackVariant = "mono"
 )
 
-// GetFallback returns either Monaspace Argon or Neon as the fallback font
+// GetFallback returns either JetBrainsMono or Inter as the fallback font
 func GetFallback(variant FallbackVariant) (*Font, error) {
 	var filename string
 	var fontName string
@@ -217,25 +207,11 @@ func GetFallback(variant FallbackVariant) (*Font, error) {
 
 	switch variant {
 	case FallbackMono:
-		filename = "MonaspaceNeon-Regular.ttf"
-		fontName = "Monaspace Neon"
-		variations = map[string]float32{
-			AxisWeight:    400, // Regular weight
-			AxisWidth:     100, // Normal width
-			AxisSlant:     0,   // No slant
-			AxisTexture:   0,   // No texture healing
-			AxisLigatures: 0,   // Disable ligatures
-		}
+		filename = "JetBrainsMono-Regular.ttf"
+		fontName = "JetBrainsMono"
 	default: // FallbackSans
-		filename = "MonaspaceArgon-Regular.ttf"
-		fontName = "Monaspace Argon"
-		variations = map[string]float32{
-			AxisWeight:    400, // Regular weight
-			AxisWidth:     100, // Normal width
-			AxisSlant:     0,   // No slant
-			AxisTexture:   0,   // No texture healing
-			AxisLigatures: 0,   // Disable ligatures
-		}
+		filename = "Inter-Regular.ttf"
+		fontName = "Inter"
 	}
 
 	data, err := embeddedFonts.ReadFile("embedded/" + filename)
@@ -709,17 +685,20 @@ func (f *Font) GetFontFace(size float64) (font.Face, error) {
 		return fallback.GetFontFace(size)
 	}
 
-	// Create face options
-	opts := &opentype.FaceOptions{
-		Size: size,
-		DPI:  72,
-	}
-
-	face, err := opentype.NewFace(f.Font, opts)
+	// Convert to TrueType for better hinting support
+	ttf, err := f.ToTrueType()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create font face: %v", err)
+		return nil, fmt.Errorf("failed to convert to TrueType: %v", err)
 	}
 
+	// Create face options with hinting enabled
+	opts := &truetype.Options{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	}
+
+	face := truetype.NewFace(ttf, opts)
 	return face, nil
 }
 
