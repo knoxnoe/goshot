@@ -2,7 +2,7 @@ Source: goshot
 Section: utils
 Priority: optional
 Maintainer: Chris Watson <cawatson1993@gmail.com>
-Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21)
+Build-Depends: debhelper-compat (= 13), golang-go (>= 1.21), git
 Standards-Version: 4.6.0
 Homepage: https://github.com/watzon/goshot
 Rules-Requires-Root: no
