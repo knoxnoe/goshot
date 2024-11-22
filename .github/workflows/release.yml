@@ -153,7 +153,7 @@ jobs:
           dch -v ${VERSION}-1 --distribution jammy "New upstream release"
 
       - name: Build source package
-        run: debuild -S -sa
+        run: debuild -S -sa -d
 
       - name: Upload to PPA
         run: |
