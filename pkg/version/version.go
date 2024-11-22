@@ -4,7 +4,7 @@ package version
 const Version = "v0.4.7"
 
 // Revision is the current git revision of goshot
-const Revision = "617e1cb17f90b9c4f96ba85c654efc8978088418"
+const Revision = "614d221db9008d37ee316c683134ca42b001e571"
 
 // Date is the build date of goshot
 const Date = "2024-11-22"
