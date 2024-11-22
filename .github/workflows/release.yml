@@ -21,7 +21,12 @@ jobs:
           ref: main
       - name: Update version
         run: |
+          COMMIT=$(git rev-parse HEAD)
+          DATE=$(date -u +"%Y-%m-%d")
           sed -i "s/const Version = \".*\"/const Version = \"${GITHUB_REF_NAME}\"/" pkg/version/version.go
+          sed -i "s/const Revision = \".*\"/const Revision = \"${GITHUB_SHA}\"/" pkg/version/version.go
+          sed -i "s/const Date = \".*\"/const Date = \"${DATE}\"/" pkg/version/version.go
+          sed -i "s/const Commit = \".*\"/const Commit = \"${COMMIT}\"/" pkg/version/version.go
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
           git add pkg/version/version.go
