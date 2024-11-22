@@ -158,7 +158,11 @@ jobs:
       - name: Upload to PPA
         run: |
           cat > ~/.dput.cf << EOF
-          [*]
+          [ppa]
+          fqdn = ppa.launchpad.net
+          method = ftp
+          incoming = ~watzon/ubuntu/goshot
+          login = anonymous
           allow_unsigned_uploads = no
           EOF
           dput ppa:watzon/goshot ../goshot_*_source.changes
