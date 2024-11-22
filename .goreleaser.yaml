@@ -1,0 +1,81 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    goarm:
+      - "7"
+    main: ./cmd/goshot
+    ldflags:
+      - -s -w
+      - -X github.com/watzon/goshot/pkg/version.Version={{.Version}}
+      - -X github.com/watzon/goshot/pkg/version.Commit={{.Commit}}
+      - -X github.com/watzon/goshot/pkg/version.Date={{.Date}}
+
+nfpms:
+  - vendor: Chris Watson
+    homepage: https://github.com/watzon/goshot
+    maintainer: Chris Watson <cawatson1993@gmail.com>
+    description: A screenshot and screen recording tool for Linux
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    dependencies:
+      - libx11-dev
+      - libxrandr-dev
+      - libxinerama-dev
+      - libxcursor-dev
+      - libxfixes-dev
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}-{{ .Version }}-source'
+
+checksum:
+  name_template: 'checksums.txt'
+
+signs:
+  - cmd: cosign
+    certificate: '${artifact}.pem'
+    args:
+      - sign-blob
+      - --output-certificate=${certificate}
+      - --output-signature=${signature}
+      - ${artifact}
+      - --yes # needed on cosign 2.0.0+
+    artifacts: checksum
+    output: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - Merge pull request
+      - Merge branch
