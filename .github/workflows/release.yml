@@ -157,5 +157,8 @@ jobs:
 
       - name: Upload to PPA
         run: |
-          echo "allow_unsigned_uploads = no" > ~/.dput.cf
+          cat > ~/.dput.cf << EOF
+          [*]
+          allow_unsigned_uploads = no
+          EOF
           dput ppa:watzon/goshot ../goshot_*_source.changes
