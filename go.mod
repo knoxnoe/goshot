@@ -1,6 +1,6 @@
 module github.com/watzon/goshot
 
-go 1.21
+go 1.23
 
 require (
 	github.com/atotto/clipboard v0.1.4

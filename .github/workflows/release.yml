@@ -46,6 +46,12 @@ jobs:
         with:
           go-version: '>=1.20.0'
 
+      - name: Create vendor archive
+        run: |
+          go mod vendor
+          tar czf vendor.tar.gz vendor/
+          rm -rf vendor
+
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.7.0
 
@@ -53,7 +59,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: v2.4.7
+          version: latest
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -113,7 +119,8 @@ jobs:
           commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
 
   ppa:
-    needs: goreleaser
+    name: Build and publish to PPA
+    needs: [goreleaser]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -121,10 +128,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
+      - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.21'
+          go-version: stable
+
+      - name: Create vendor archive
+        run: |
+          go mod vendor
+          tar czf vendor.tar.gz vendor/
+          rm -rf vendor
+
+      - name: Download release assets
+        run: |
+          mkdir -p build/debian
+          curl -sL https://github.com/watzon/goshot/releases/download/${GITHUB_REF_NAME}/goshot_Linux_x86_64.tar.gz | tar xzf - -C build/debian
 
       - name: Import GPG
         uses: crazy-max/ghaction-import-gpg@v3.1.0
@@ -145,6 +163,7 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           # Copy debian directory to the right place and create orig tarball
           cp -r build/debian debian
+          cp vendor.tar.gz .
           mv .github ..
           tar cfv ../goshot_${VERSION}.orig.tar .
           xz -9 ../goshot_${VERSION}.orig.tar
