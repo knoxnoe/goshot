@@ -4,6 +4,8 @@ export GOMODCACHE=$(CURDIR)/.go/pkg/mod
 export GOCACHE=$(CURDIR)/.go/cache
 export HOME=$(CURDIR)
 export GOPATH=$(CURDIR)/.go
+export GOPROXY=direct
+export GOSUMDB=off
 
 %:
 	dh $@
