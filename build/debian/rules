@@ -4,16 +4,17 @@ export GOMODCACHE=$(CURDIR)/.go/pkg/mod
 export GOCACHE=$(CURDIR)/.go/cache
 export HOME=$(CURDIR)
 export GOPATH=$(CURDIR)/.go
-export GOPROXY=direct
+export GOPROXY=off
 export GOSUMDB=off
 
 %:
 	dh $@
 
 override_dh_auto_build:
+	# Extract vendor dependencies
+	tar xf vendor.tar.gz
 	mkdir -p .go/pkg/mod .go/cache
-	go mod download
-	go build -o goshot ./cmd/goshot
+	go build -mod=vendor -o goshot ./cmd/goshot
 
 override_dh_auto_install:
 	install -D -m 0755 goshot debian/goshot/usr/bin/goshot
@@ -22,5 +23,5 @@ override_dh_auto_test:
 	# Skip tests during package build
 
 override_dh_auto_clean:
-	rm -rf .go
+	rm -rf .go vendor
 	dh_auto_clean
