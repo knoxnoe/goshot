@@ -115,6 +115,7 @@ func main() {
         log.Fatal(err)
     }
 }
+```
 
 ## Documentation
 
