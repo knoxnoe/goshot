@@ -9,6 +9,24 @@ permissions:
   id-token: write
 
 jobs:
+  update-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update version
+        run: |
+          sed -i "s/const Version = \".*\"/const Version = \"${GITHUB_REF_NAME}\"/" pkg/version/version.go
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+          git add pkg/version/version.go
+          git commit -m "Update version to ${GITHUB_REF_NAME}"
+          git push
+
   goreleaser:
     runs-on: ubuntu-latest
     steps:
@@ -34,3 +52,56 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           COSIGN_EXPERIMENTAL: 1
+
+  publish-aur:
+    needs: [goreleaser]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate PKGBUILD
+        run: |
+          # Remove 'v' prefix from version number for pkgver
+          VERSION="${{ github.ref_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          echo "Building package for version: $VERSION_NO_V"
+          cat > PKGBUILD << EOF
+          # Maintainer: Chris Watson <cawatson1993@gmail.com>
+          pkgname=goshot-bin
+          pkgver=\${VERSION_NO_V}
+          pkgrel=1
+          pkgdesc="A powerful CLI tool and library for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds"
+          arch=('x86_64' 'aarch64')
+          url="https://github.com/watzon/goshot"
+          license=('MIT')
+          optdepends=(
+              'wl-clipboard: clipboard support for Wayland'
+              'xclip: clipboard support for X11'
+          )
+          provides=('goshot')
+          conflicts=('goshot')
+
+          source_x86_64=("\${pkgname}-\${pkgver}-x86_64.tar.gz::https://github.com/watzon/goshot/releases/download/\${VERSION}/goshot_Linux_x86_64.tar.gz")
+          source_aarch64=("\${pkgname}-\${pkgver}-aarch64.tar.gz::https://github.com/watzon/goshot/releases/download/\${VERSION}/goshot_Linux_arm64.tar.gz")
+          sha256sums_x86_64=('SKIP')
+          sha256sums_aarch64=('SKIP')
+
+          package() {
+              cd "\$srcdir"
+              install -Dm755 goshot "\$pkgdir/usr/bin/goshot"
+              install -Dm644 LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/LICENSE"
+          }
+          EOF
+
+      - name: Publish AUR package
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: goshot-bin
+          pkgbuild: ./PKGBUILD
+          commit_username: ${{ secrets.AUR_USERNAME }}
+          commit_email: ${{ secrets.AUR_EMAIL }}
+          ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+          commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
