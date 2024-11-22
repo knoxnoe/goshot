@@ -40,7 +40,7 @@ jobs:
           # Commit and push changes
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          git add pkg/version/version.go
+          git add --all
           git commit -m "Update version to v${VERSION}" || echo "No changes to commit"
           git pull --rebase origin main || echo "Failed to rebase, continuing anyway"
           git push origin HEAD:main || echo "Failed to push, continuing anyway"
@@ -131,70 +131,70 @@ jobs:
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
 
-  ppa:
-    name: Build and publish to PPA
-    needs: [goreleaser]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+  # ppa:
+  #   name: Build and publish to PPA
+  #   needs: [goreleaser]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
 
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: stable
+  #     - name: Setup Go
+  #       uses: actions/setup-go@v4
+  #       with:
+  #         go-version: stable
 
-      - name: Create vendor archive
-        run: |
-          go mod vendor
-          tar czf vendor.tar.gz vendor/
-          rm -rf vendor
+  #     - name: Create vendor archive
+  #       run: |
+  #         go mod vendor
+  #         tar czf vendor.tar.gz vendor/
+  #         rm -rf vendor
 
-      - name: Download release assets
-        run: |
-          mkdir -p build/debian
-          curl -sL https://github.com/watzon/goshot/releases/download/${GITHUB_REF_NAME}/goshot_Linux_x86_64.tar.gz | tar xzf - -C build/debian
+  #     - name: Download release assets
+  #       run: |
+  #         mkdir -p build/debian
+  #         curl -sL https://github.com/watzon/goshot/releases/download/${GITHUB_REF_NAME}/goshot_Linux_x86_64.tar.gz | tar xzf - -C build/debian
 
-      - name: Import GPG
-        uses: crazy-max/ghaction-import-gpg@v3.1.0
-        with:
-          gpg-private-key: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.LAUNCHPAD_GPG_PASSPHRASE }}
+  #     - name: Import GPG
+  #       uses: crazy-max/ghaction-import-gpg@v3.1.0
+  #       with:
+  #         gpg-private-key: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
+  #         passphrase: ${{ secrets.LAUNCHPAD_GPG_PASSPHRASE }}
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y devscripts debhelper-compat dput
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y devscripts debhelper-compat dput
 
-      - name: Prepare package
-        env:
-          DEBEMAIL: "cawatson1993@gmail.com"
-          DEBFULLNAME: "Chris Watson"
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          # Copy debian directory to the right place and create orig tarball
-          cp -r build/debian debian
-          cp vendor.tar.gz .
-          mv .github ..
-          tar cfv ../goshot_${VERSION}.orig.tar .
-          xz -9 ../goshot_${VERSION}.orig.tar
-          mv ../.github .
-          # Update changelog
-          dch -v ${VERSION}-1 --distribution jammy "New upstream release"
+  #     - name: Prepare package
+  #       env:
+  #         DEBEMAIL: "cawatson1993@gmail.com"
+  #         DEBFULLNAME: "Chris Watson"
+  #       run: |
+  #         VERSION=${GITHUB_REF#refs/tags/v}
+  #         # Copy debian directory to the right place and create orig tarball
+  #         cp -r build/debian debian
+  #         cp vendor.tar.gz .
+  #         mv .github ..
+  #         tar cfv ../goshot_${VERSION}.orig.tar .
+  #         xz -9 ../goshot_${VERSION}.orig.tar
+  #         mv ../.github .
+  #         # Update changelog
+  #         dch -v ${VERSION}-1 --distribution jammy "New upstream release"
 
-      - name: Build source package
-        run: debuild -S -sa -d
+  #     - name: Build source package
+  #       run: debuild -S -sa -d
 
-      - name: Upload to PPA
-        run: |
-          cat > ~/.dput.cf << EOF
-          [ppa]
-          fqdn = ppa.launchpad.net
-          method = ftp
-          incoming = ~watzon/ubuntu/goshot
-          login = anonymous
-          allow_unsigned_uploads = no
-          EOF
-          dput ppa:watzon/goshot ../goshot_*_source.changes
+  #     - name: Upload to PPA
+  #       run: |
+  #         cat > ~/.dput.cf << EOF
+  #         [ppa]
+  #         fqdn = ppa.launchpad.net
+  #         method = ftp
+  #         incoming = ~watzon/ubuntu/goshot
+  #         login = anonymous
+  #         allow_unsigned_uploads = no
+  #         EOF
+  #         dput ppa:watzon/goshot ../goshot_*_source.changes
