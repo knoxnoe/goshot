@@ -32,36 +32,8 @@ jobs:
           git commit -m "Update version to ${GITHUB_REF_NAME}"
           git push origin main
 
-  prepare:
-    runs-on: ubuntu-latest
-    outputs:
-      vendor_path: ${{ steps.vendor.outputs.vendor_path }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '>=1.20.0'
-
-      - name: Vendor dependencies
-        id: vendor
-        run: |
-          go mod vendor
-          tar czf vendor.tar.gz vendor/
-          echo "vendor_path=vendor.tar.gz" >> $GITHUB_OUTPUT
-
-      - name: Upload vendor artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: vendor
-          path: vendor.tar.gz
-
   goreleaser:
-    needs: [update-version, prepare]
+    needs: update-version
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -81,7 +53,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: latest
+          version: v2.4.7
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -131,7 +103,7 @@ jobs:
           EOF
 
       - name: Publish AUR package
-        uses: KSXGitHub/github-actions-deploy-aur@v2.7.0
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
         with:
           pkgname: goshot-bin
           pkgbuild: ./PKGBUILD
@@ -141,7 +113,7 @@ jobs:
           commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
 
   ppa:
-    needs: [prepare]
+    needs: goreleaser
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -153,12 +125,6 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.21'
-
-      - name: Download vendor artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: vendor
-          path: build/vendor
 
       - name: Import GPG
         uses: crazy-max/ghaction-import-gpg@v3.1.0
@@ -179,7 +145,6 @@ jobs:
           VERSION=${GITHUB_REF#refs/tags/v}
           # Copy debian directory to the right place and create orig tarball
           cp -r build/debian debian
-          cp -r build/vendor/vendor.tar.gz .
           mv .github ..
           tar cfv ../goshot_${VERSION}.orig.tar .
           xz -9 ../goshot_${VERSION}.orig.tar
