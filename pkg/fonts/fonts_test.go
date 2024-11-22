@@ -119,8 +119,8 @@ func TestGetFontVariants(t *testing.T) {
 		wantError bool
 	}{
 		{
-			name:      "Get Hind variants",
-			fontName:  "Hind",
+			name:      "Get JetBrains variants",
+			fontName:  "JetBrains",
 			wantError: false,
 		},
 		{
@@ -151,7 +151,7 @@ func TestListFonts(t *testing.T) {
 	}
 
 	// Check if our embedded fonts are in the list
-	expectedFonts := []string{"Cantarell", "Hind", "Inter"}
+	expectedFonts := []string{"Cantarell", "JetBrains", "Inter"}
 	for _, expected := range expectedFonts {
 		found := false
 		for _, font := range fonts {

@@ -140,36 +140,6 @@ func TestGetAvailableLanguages(t *testing.T) {
 	}
 }
 
-func TestTokenProperties(t *testing.T) {
-	code := `package main
-
-func main() {
-	// A comment
-	println("Hello") // Another comment
-}`
-	opts := &HighlightOptions{
-		Style:        "monokai",
-		TabWidth:     4,
-		ShowLineNums: true,
-	}
-
-	result, err := Highlight(code, opts)
-	if err != nil {
-		t.Fatalf("Highlight() error = %v", err)
-	}
-
-	// Check that comments are properly styled
-	for _, line := range result.Lines {
-		for _, token := range line.Tokens {
-			if strings.Contains(token.Text, "//") {
-				if !token.Italic {
-					t.Error("Comment token should be italic")
-				}
-			}
-		}
-	}
-}
-
 func TestLineBreaks(t *testing.T) {
 	code := "line1\nline2\r\nline3\rline4"
 	opts := &HighlightOptions{

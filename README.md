@@ -36,7 +36,26 @@ go install github.com/watzon/goshot/cmd/goshot@latest
 go get github.com/watzon/goshot
 ```
 
-The binary is also available through the following package managers:
+#### Package Managers
+
+##### Arch Linux (AUR)
+```bash
+# Using yay
+yay -S goshot-bin
+
+# Using paru
+paru -S goshot-bin
+```
+
+##### Ubuntu/Debian
+```bash
+# Add the PPA
+sudo add-apt-repository ppa:watzon/goshot
+sudo apt update
+
+# Install goshot
+sudo apt install goshot
+```
 
 [![Packaging status](https://repology.org/badge/vertical-allrepos/goshot.svg)](https://repology.org/project/goshot/versions)
 
@@ -96,7 +115,6 @@ func main() {
         log.Fatal(err)
     }
 }
-```
 
 ## Documentation
 
