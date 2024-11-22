@@ -112,7 +112,7 @@ jobs:
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: "Update to version ${GITHUB_REF#refs/tags/v}"
 
-  publish-ppa:
+  ppa:
     needs: goreleaser
     runs-on: ubuntu-latest
     steps:
@@ -126,35 +126,34 @@ jobs:
         with:
           go-version: '1.21'
 
-      - name: Import GPG key
-        uses: crazy-max/ghaction-import-gpg@v6
+      - name: Import GPG
+        uses: crazy-max/ghaction-import-gpg@v3.1.0
         with:
-          gpg_private_key: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
-          git_user_signingkey: true
-          git_commit_gpgsign: true
+          gpg-private-key: ${{ secrets.LAUNCHPAD_GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.LAUNCHPAD_GPG_PASSPHRASE }}
 
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y debhelper devscripts dput-ng
+          sudo apt-get install -y devscripts debhelper-compat dput
 
-      - name: Build source package
+      - name: Prepare package
         env:
           DEBEMAIL: "cawatson1993@gmail.com"
           DEBFULLNAME: "Chris Watson"
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
-          # Copy debian directory to the right place
+          # Copy debian directory to the right place and create orig tarball
           cp -r build/debian debian
+          mv .github ..
+          tar cfv ../goshot_${VERSION}.orig.tar .
+          xz -9 ../goshot_${VERSION}.orig.tar
+          mv ../.github .
           # Update changelog
-          dch -v $VERSION-1 --distribution jammy "New upstream release"
-          # Configure GPG for non-interactive signing
-          export GPG_TTY=$(tty)
-          echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
-          echo 'pinentry-mode loopback' >> ~/.gnupg/gpg.conf
-          gpgconf --reload gpg-agent
-          # Build source package
-          dpkg-buildpackage -S -sa -d -k${{ secrets.LAUNCHPAD_GPG_KEY_ID }}
+          dch -v ${VERSION}-1 --distribution jammy "New upstream release"
+
+      - name: Build source package
+        run: debuild -S -sa
 
       - name: Upload to PPA
         run: |
