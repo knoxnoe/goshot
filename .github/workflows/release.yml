@@ -22,28 +22,16 @@ jobs:
 
       - name: Update version
         run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          REVISION=$(git rev-parse HEAD)
-          DATE=$(date -u +%Y-%m-%d)
-          
-          # Update version.go
-          cat > pkg/version/version.go << EOF
-          package version
-          
-          const (
-              Version = "v${VERSION}"
-              Revision = "${REVISION}"
-              Date = "${DATE}"
-          )
-          EOF
-          
-          # Commit and push changes
+          DATE=$(date -u +"%Y-%m-%d")
+          sed -i "s/const Version = \".*\"/const Version = \"${GITHUB_REF_NAME}\"/" pkg/version/version.go
+          sed -i "s/const Revision = \".*\"/const Revision = \"${GITHUB_SHA}\"/" pkg/version/version.go
+          sed -i "s/const Date = \".*\"/const Date = \"${DATE}\"/" pkg/version/version.go
+          sed -i "s/Standards-Version: \*.*\"/Standards-Version: \"${GITHUB_REF_NAME}\"/" build/debian/control
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-          git add --all
-          git commit -m "Update version to v${VERSION}" || echo "No changes to commit"
-          git pull --rebase origin main || echo "Failed to rebase, continuing anyway"
-          git push origin HEAD:main || echo "Failed to push, continuing anyway"
+          git add pkg/version/version.go
+          git commit -m "Update version to ${GITHUB_REF_NAME}"
+          git push origin main
 
   goreleaser:
     needs: update-version
