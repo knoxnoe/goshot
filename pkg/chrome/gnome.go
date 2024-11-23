@@ -12,7 +12,7 @@ const (
 	gnomeDefaultTitleBarHeight = 32
 	gnomeDefaultControlSize    = 16
 	gnomeDefaultControlSpacing = 8
-	gnomeDefaultTitleFontSize  = 18
+	gnomeDefaultTitleFontSize  = 14
 	gnomeDefaultControlPadding = 8
 	gnomeDefaultCornerRadius   = 8.0
 	adwaitaTitleBarHeight      = 45
@@ -57,7 +57,7 @@ func registerAdwaitaTheme() {
 		Name:    "adwaita",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleFontSize:      18,
+			TitleFontSize:      adwaitaTitleFontSize,
 			TitleBackground:    color.RGBA{R: 242, G: 242, B: 242, A: 255},
 			TitleText:          color.RGBA{R: 40, G: 40, B: 40, A: 255},
 			ControlsColor:      color.RGBA{R: 40, G: 40, B: 40, A: 255},
@@ -83,7 +83,7 @@ func registerAdwaitaTheme() {
 		Name:    "adwaita",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleFontSize:      18,
+			TitleFontSize:      adwaitaTitleFontSize,
 			TitleBackground:    color.RGBA{R: 36, G: 36, B: 36, A: 255},
 			TitleText:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ControlsColor:      color.RGBA{R: 255, G: 255, B: 255, A: 255},
@@ -114,7 +114,7 @@ func registerBreezeTheme() {
 		Name:    "breeze",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleFontSize:      14,
+			TitleFontSize:      gnomeDefaultTitleFontSize,
 			TitleBackground:    color.RGBA{R: 205, G: 209, B: 214, A: 255},
 			TitleText:          color.RGBA{R: 109, G: 113, B: 120, A: 255},
 			ControlsColor:      color.RGBA{R: 40, G: 40, B: 40, A: 255},
@@ -140,7 +140,7 @@ func registerBreezeTheme() {
 		Name:    "breeze",
 		Properties: ThemeProperties{
 			TitleFont:          "Cantarell",
-			TitleFontSize:      14,
+			TitleFontSize:      gnomeDefaultTitleFontSize,
 			TitleBackground:    color.RGBA{R: 68, G: 82, B: 91, A: 255},
 			TitleText:          color.RGBA{R: 255, G: 255, B: 255, A: 255},
 			ControlsColor:      color.RGBA{R: 255, G: 255, B: 255, A: 255},

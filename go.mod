@@ -13,6 +13,7 @@ require (
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
+	github.com/creack/pty v1.1.24 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -28,6 +29,7 @@ require (
 )
 
 require (
+	github.com/alecthomas/chroma v0.10.0
 	github.com/alecthomas/chroma/v2 v2.14.0
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/fogleman/gg v1.3.0

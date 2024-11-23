@@ -27,8 +27,11 @@ type CodeStyle struct {
 	ShowLineNumbers     bool
 	LineNumberRange     LineRange
 	LineHighlightRanges []LineRange
+	ShowPrompt          bool
+	PromptCommand       string
 
 	// Rendering options
+	UseANSI           bool
 	FontSize          float64
 	FontFamily        *fonts.Font
 	LineHeight        float64
@@ -89,6 +92,8 @@ func NewCanvas() *Canvas {
 			MinWidth:            0,
 			MaxWidth:            0,
 			LineNumberPadding:   16,
+			ShowPrompt:          false,
+			PromptCommand:       "",
 		},
 	}
 }
@@ -147,6 +152,9 @@ func (c *Canvas) SetLineHeight(height float64) *Canvas {
 func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 	// Get highlighted code
 	highlightOpts := &syntax.HighlightOptions{
+		UseANSI:          c.codeStyle.UseANSI,
+		ShowPrompt:       c.codeStyle.ShowPrompt,
+		PromptCommand:    c.codeStyle.PromptCommand,
 		Style:            c.codeStyle.Theme,
 		Language:         c.codeStyle.Language,
 		TabWidth:         c.codeStyle.TabWidth,

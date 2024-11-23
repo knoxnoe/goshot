@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"image"
@@ -34,9 +35,10 @@ var (
 		title      lipgloss.Style
 		subtitle   lipgloss.Style
 		error      lipgloss.Style
-		success    lipgloss.Style
 		info       lipgloss.Style
 		groupTitle lipgloss.Style
+		successBox lipgloss.Style
+		infoBox    lipgloss.Style
 	}{
 		title: lipgloss.NewStyle().
 			Bold(true).
@@ -48,10 +50,14 @@ var (
 		error: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.AdaptiveColor{Light: "#d70000", Dark: "#FF5555"}),
-		success: lipgloss.NewStyle().
+		successBox: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
 			Background(lipgloss.AdaptiveColor{Light: "#2E7D32", Dark: "#388E3C"}),
+		infoBox: lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.AdaptiveColor{Light: "#FFFFFF", Dark: "#FFFFFF"}).
+			Background(lipgloss.AdaptiveColor{Light: "#0087af", Dark: "#8BE9FD"}),
 		info: lipgloss.NewStyle().
 			Foreground(lipgloss.AdaptiveColor{Light: "#0087af", Dark: "#8BE9FD"}),
 		groupTitle: lipgloss.NewStyle().
@@ -71,7 +77,7 @@ type Config struct {
 	FromClipboard  bool
 	ToStdout       bool
 	ExecuteCommand string
-	ShowCommand    bool
+	ShowPrompt     bool
 	AutoTitle      bool
 
 	// Appearance
@@ -84,7 +90,7 @@ type Config struct {
 	BackgroundColor    string
 	BackgroundImage    string
 	BackgroundImageFit string
-	ShowLineNumbers    bool
+	NoLineNumbers      bool
 	CornerRadius       float64
 	NoWindowControls   bool
 	WindowTitle        string
@@ -119,6 +125,15 @@ type Config struct {
 
 	// Highlighting
 	HighlightLines string
+}
+
+// logMessage prints a styled message with consistent alignment
+func logMessage(box lipgloss.Style, tag string, message string) {
+	// Set a consistent width for the tag box and center the text
+	const boxWidth = 11 // 9 characters + 2 padding spaces
+	paddedTag := fmt.Sprintf("%*s", -boxWidth, tag)
+	centeredBox := box.Width(boxWidth).Align(lipgloss.Center)
+	fmt.Println(centeredBox.Render(paddedTag) + " " + styles.info.Render(message))
 }
 
 func main() {
@@ -166,7 +181,7 @@ func main() {
 	outputFlagSet.BoolVar(&config.FromClipboard, "from-clipboard", false, "Read input from clipboard")
 	outputFlagSet.BoolVarP(&config.ToStdout, "to-stdout", "s", false, "Write output to stdout")
 	outputFlagSet.StringVar(&config.ExecuteCommand, "execute", "", "Execute command and use output as input")
-	outputFlagSet.BoolVar(&config.ShowCommand, "show-command", false, "Show the command used to generate the screenshot")
+	outputFlagSet.BoolVar(&config.ShowPrompt, "show-prompt", false, "Show the prompt used to generate the screenshot")
 	outputFlagSet.BoolVar(&config.AutoTitle, "auto-title", false, "Automatically set the window title to the filename or command")
 
 	rootCmd.Flags().AddFlagSet(outputFlagSet)
@@ -185,7 +200,7 @@ func main() {
 	appearanceFlagSet.StringVarP(&config.BackgroundColor, "background", "b", "#aaaaff", "Background color")
 	appearanceFlagSet.StringVar(&config.BackgroundImage, "background-image", "", "Background image path")
 	appearanceFlagSet.StringVar(&config.BackgroundImageFit, "background-image-fit", "cover", "Background image fit (contain, cover, fill, stretch, tile)")
-	appearanceFlagSet.BoolVar(&config.ShowLineNumbers, "no-line-number", false, "Hide line numbers")
+	appearanceFlagSet.BoolVar(&config.NoLineNumbers, "no-line-number", false, "Hide line numbers")
 	appearanceFlagSet.Float64Var(&config.CornerRadius, "corner-radius", 10.0, "Corner radius of the image")
 	appearanceFlagSet.BoolVar(&config.NoWindowControls, "no-window-controls", false, "Hide window controls")
 	appearanceFlagSet.StringVar(&config.WindowTitle, "window-title", "", "Window title")
@@ -394,19 +409,77 @@ func renderImage(config *Config, echo bool, args []string) error {
 
 	switch {
 	case config.ExecuteCommand != "":
-		// Execute command and capture output
-		cmd := exec.Command("sh", "-c", config.ExecuteCommand)
 		var stdout bytes.Buffer
-		cmd.Stdout = &stdout
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to execute command: %v", err)
+		env := append(os.Environ(),
+			"TERM=xterm-256color", // Support 256 colors
+			"COLORTERM=truecolor", // Support 24-bit true color
+			"FORCE_COLOR=1",       // Generic force color
+			"CLICOLOR_FORCE=1",    // BSD apps
+			"CLICOLOR=1",          // BSD apps
+			"NO_COLOR=",           // Clear NO_COLOR
+			"COLUMNS=120",         // Set terminal width
+			"LINES=40",            // Set terminal height
+		)
+
+		logMessage(styles.infoBox, "EXECUTING", config.ExecuteCommand)
+
+		// Try script first as it's most reliable for TTY emulation
+		cmd := exec.Command("script", "-qfec", config.ExecuteCommand, "/dev/null")
+		cmd.Env = env
+		cmd.Dir, _ = os.Getwd() // Set working directory to current directory
+
+		// Create pipes for stdout
+		r, w := io.Pipe()
+		bufR := bufio.NewReaderSize(r, 32*1024) // 32KB buffer
+		cmd.Stdout = w
+		cmd.Stderr = w
+
+		// Start the command
+		if err := cmd.Start(); err != nil {
+			// If script fails, try stdbuf
+			cmd = exec.Command("stdbuf", "-o0", "-e0", "sh", "-c", config.ExecuteCommand)
+			cmd.Stdout = w
+			cmd.Stderr = w
+			cmd.Env = env
+
+			if err := cmd.Start(); err != nil {
+				// If stdbuf fails, try unbuffer
+				cmd = exec.Command("unbuffer", "-p", config.ExecuteCommand)
+				cmd.Stdout = w
+				cmd.Stderr = w
+				cmd.Env = env
+
+				if err := cmd.Start(); err != nil {
+					// Last resort: direct execution
+					cmd = exec.Command("sh", "-c", config.ExecuteCommand)
+					cmd.Stdout = w
+					cmd.Stderr = w
+					cmd.Env = env
+
+					if err := cmd.Start(); err != nil {
+						return fmt.Errorf("failed to start command: %v", err)
+					}
+				}
+			}
 		}
-		config.Language = "shell"
-		if config.ShowCommand {
-			code = fmt.Sprintf("$ %s\n%s", config.ExecuteCommand, stdout.String())
-		} else {
-			code = stdout.String()
+
+		// Copy output in a goroutine
+		doneChan := make(chan struct{})
+		go func() {
+			defer w.Close()
+			defer close(doneChan)
+			cmd.Wait()
+		}()
+
+		// Read the output
+		if _, err := io.Copy(&stdout, bufR); err != nil {
+			return fmt.Errorf("failed to read command output: %v", err)
 		}
+
+		<-doneChan
+
+		code = stdout.String()
+		config.NoLineNumbers = true
 	case config.FromClipboard:
 		// Read from clipboard
 		code, err = clipboard.ReadAll()
@@ -607,6 +680,9 @@ func renderImage(config *Config, echo bool, args []string) error {
 
 	// Configure code style
 	canvas.SetCodeStyle(&render.CodeStyle{
+		UseANSI:         config.ExecuteCommand != "",
+		ShowPrompt:      config.ShowPrompt,
+		PromptCommand:   config.ExecuteCommand,
 		Language:        config.Language,
 		Theme:           strings.ToLower(config.Theme),
 		FontFamily:      requestedFont,
@@ -616,7 +692,7 @@ func renderImage(config *Config, echo bool, args []string) error {
 		PaddingRight:    config.CodePadRight,
 		PaddingTop:      config.CodePadTop,
 		PaddingBottom:   config.CodePadBottom,
-		ShowLineNumbers: !config.ShowLineNumbers,
+		ShowLineNumbers: !config.NoLineNumbers,
 		LineNumberRange: render.LineRange{
 			Start: config.StartLine,
 			End:   config.EndLine,
@@ -643,7 +719,7 @@ func renderImage(config *Config, echo bool, args []string) error {
 			}
 
 			if echo {
-				fmt.Println(styles.success.Render(" COPIED ") + " to clipboard")
+				logMessage(styles.successBox, "COPIED", "to clipboard")
 			}
 		}
 
@@ -659,7 +735,7 @@ func renderImage(config *Config, echo bool, args []string) error {
 	err = saveImage(img, config)
 	if err == nil {
 		if echo {
-			fmt.Println(styles.success.Render(" WROTE ") + " " + config.OutputFile)
+			logMessage(styles.successBox, "WROTE", config.OutputFile)
 		}
 	} else {
 		return fmt.Errorf("failed to save image: %v", err)
@@ -671,7 +747,7 @@ func renderImage(config *Config, echo bool, args []string) error {
 func saveImage(img image.Image, config *Config) error {
 	// If no output file is specified, use png as default
 	if config.OutputFile == "" {
-		config.OutputFile = "screenshot.png"
+		config.OutputFile = "output.png"
 	}
 
 	// Get the extension from the filename

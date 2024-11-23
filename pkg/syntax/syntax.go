@@ -48,6 +48,9 @@ type HighlightOptions struct {
 	TabWidth         int    // Number of spaces per tab
 	ShowLineNums     bool   // Whether to show line numbers
 	HighlightedLines []int  // Lines that should be highlighted
+	ShowPrompt       bool   // Whether to show a terminal prompt
+	PromptCommand    string // The command to show in the prompt
+	UseANSI          bool   // If true, parse ANSI escape sequences instead of using Chroma
 }
 
 // DefaultOptions returns the default highlight options
@@ -58,6 +61,8 @@ func DefaultOptions() *HighlightOptions {
 		TabWidth:         4,
 		ShowLineNums:     true,
 		HighlightedLines: []int{},
+		ShowPrompt:       false,
+		PromptCommand:    "",
 	}
 }
 
@@ -106,49 +111,32 @@ func Highlight(code string, opts *HighlightOptions) (*HighlightedCode, error) {
 		opts = DefaultOptions()
 	}
 
-	// Get lexer based on language or detect
+	// If ANSI mode is enabled, use ANSI parser
+	if opts.UseANSI {
+		return ParseANSI(code, opts)
+	}
+
+	// Otherwise use Chroma for syntax highlighting
 	var lexer chroma.Lexer
 	if opts.Language != "" {
-		// Convert alias to canonical name if needed
-		canonicalName := GetLanguageByAlias(opts.Language)
-		if canonicalName != "" {
-			lexer = lexers.Get(canonicalName)
-		}
-
-		// If not found by canonical name, try direct lookup
+		lexer = lexers.Get(opts.Language)
 		if lexer == nil {
-			lexer = lexers.Get(opts.Language)
+			return nil, fmt.Errorf("no lexer found for language: %s", opts.Language)
+		}
+	} else {
+		lexer = lexers.Analyse(code)
+		if lexer == nil {
+			lexer = lexers.Fallback
 		}
 	}
-	if lexer == nil {
-		// Try to detect the language
-		lexer = lexers.Analyse(code)
-	}
-	if lexer == nil {
-		lexer = lexers.Fallback
-	}
 
-	// Configure the lexer
-	lexer = chroma.Coalesce(lexer)
-
-	// Get style
+	// Get the style
 	style := styles.Get(opts.Style)
 	if style == nil {
 		style = styles.Fallback
 	}
 
-	// Tokenize the code
-	iterator, err := lexer.Tokenise(nil, code)
-	if err != nil {
-		return nil, err
-	}
-
-	tokens := make([]chroma.Token, 0)
-	for token := iterator(); token != chroma.EOF; token = iterator() {
-		tokens = append(tokens, token)
-	}
-
-	// Format the code
+	// Create a custom formatter
 	formatter := &customFormatter{
 		tabWidth:         opts.TabWidth,
 		highlightedLines: make(map[int]bool),
@@ -161,13 +149,23 @@ func Highlight(code string, opts *HighlightOptions) (*HighlightedCode, error) {
 		},
 	}
 
-	for _, line := range opts.HighlightedLines {
-		formatter.highlightedLines[line] = true
+	// Set up highlighted lines
+	if opts.HighlightedLines != nil {
+		for _, line := range opts.HighlightedLines {
+			formatter.highlightedLines[line] = true
+		}
 	}
 
-	err = formatter.Format(tokens, style)
+	// Tokenize the code
+	iterator, err := lexer.Tokenise(nil, code)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error tokenizing code: %v", err)
+	}
+
+	// Format the tokens
+	err = formatter.Format(iterator.Tokens(), style)
+	if err != nil {
+		return nil, fmt.Errorf("error formatting tokens: %v", err)
 	}
 
 	return formatter.Result, nil
