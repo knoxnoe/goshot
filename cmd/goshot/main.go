@@ -8,7 +8,6 @@ import (
 	"image/png"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -21,275 +20,201 @@ import (
 	"github.com/watzon/goshot/pkg/version"
 )
 
-var (
-	// Build information - these will be populated by ldflags when building with make,
-	// otherwise we'll fall back to runtime.Version() and build info
-	// version = "dev"
-	// commit  = "none"
-	// date    = "unknown"
-
+type Config struct {
 	// Interactive mode
-	interactive bool
+	Interactive bool
+	Input       string
 
 	// Output options
-	outputFile    string
-	toClipboard   bool
-	fromClipboard bool
+	OutputFile    string
+	ToClipboard   bool
+	FromClipboard bool
+	ToStdout      bool
 
 	// Appearance
-	windowChrome       string
-	chromeThemeName    string
-	darkMode           bool
-	theme              string
-	language           string
-	font               string
-	backgroundColor    string
-	backgroundImage    string
-	backgroundImageFit string
-	showLineNumbers    bool
-	cornerRadius       float64
-	noWindowControls   bool
-	windowTitle        string
-	windowCornerRadius float64
+	WindowChrome       string
+	ChromeThemeName    string
+	DarkMode           bool
+	Theme              string
+	Language           string
+	Font               string
+	BackgroundColor    string
+	BackgroundImage    string
+	BackgroundImageFit string
+	ShowLineNumbers    bool
+	CornerRadius       float64
+	NoWindowControls   bool
+	WindowTitle        string
+	WindowCornerRadius float64
 
-	// Gradient stuff
-	gradientType      string
-	gradientStops     []string
-	gradientAngle     float64
-	gradientCenterX   float64
-	gradientCenterY   float64
-	gradientIntensity float64
+	// Gradient options
+	GradientType      string
+	GradientStops     []string
+	GradientAngle     float64
+	GradientCenterX   float64
+	GradientCenterY   float64
+	GradientIntensity float64
 
 	// Padding and layout
-	tabWidth      int
-	startLine     int
-	endLine       int
-	linePadding   int
-	padHoriz      int
-	padVert       int
-	codePadTop    int
-	codePadBottom int
-	codePadLeft   int
-	codePadRight  int
+	TabWidth      int
+	StartLine     int
+	EndLine       int
+	LinePadding   int
+	PadHoriz      int
+	PadVert       int
+	CodePadTop    int
+	CodePadBottom int
+	CodePadLeft   int
+	CodePadRight  int
 
 	// Shadow options
-	shadowBlurRadius float64
-	shadowColor      string
-	shadowSpread     float64
-	shadowOffsetX    float64
-	shadowOffsetY    float64
+	ShadowBlurRadius float64
+	ShadowColor      string
+	ShadowSpread     float64
+	ShadowOffsetX    float64
+	ShadowOffsetY    float64
 
 	// Highlighting
-	highlightLines string
-)
+	HighlightLines string
+}
 
-var rootCmd *cobra.Command
+func main() {
+	var config Config
 
-func init() {
-	rootCmd = &cobra.Command{
-		Use:   "goshot",
+	rootCmd := &cobra.Command{
+		Use:   "goshot [flags] [file]",
 		Short: "Goshot is a powerful tool for creating beautiful code screenshots with customizable window chrome, syntax highlighting, and backgrounds.",
-		Run:   renderImage,
+		Run: func(cmd *cobra.Command, args []string) {
+			if config.Interactive {
+				fmt.Println("Interactive mode is coming soon!")
+				os.Exit(1)
+			}
+
+			if err := renderImage(&config, args); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+		},
 	}
 
 	// Interactive mode
-	renderCmd := &cobra.Command{
-		Use:   "render",
-		Short: "Render the code to an image",
-		Run:   renderImage,
-	}
-
-	renderCmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Interactive mode")
+	rootCmd.Flags().BoolVarP(&config.Interactive, "interactive", "i", false, "Interactive mode")
 
 	// Output flags
-	renderCmd.Flags().StringVarP(&outputFile, "output", "o", "output.png", "Write output image to specific location instead of cwd")
-	renderCmd.Flags().BoolVarP(&toClipboard, "to-clipboard", "c", false, "Copy the output image to clipboard")
-	renderCmd.Flags().BoolVar(&fromClipboard, "from-clipboard", false, "Read input from clipboard")
+	rootCmd.Flags().StringVarP(&config.OutputFile, "output", "o", "output.png", "Write output image to specific location instead of cwd")
+	rootCmd.Flags().BoolVarP(&config.ToClipboard, "to-clipboard", "c", false, "Copy the output image to clipboard")
+	rootCmd.Flags().BoolVar(&config.FromClipboard, "from-clipboard", false, "Read input from clipboard")
+	rootCmd.Flags().BoolVarP(&config.ToStdout, "to-stdout", "s", false, "Write output to stdout")
 
 	// Appearance flags
-	renderCmd.Flags().StringVarP(&windowChrome, "chrome", "C", "mac", "Chrome style. Available styles: mac, windows, gnome")
-	renderCmd.Flags().StringVarP(&chromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
-	renderCmd.Flags().BoolVarP(&darkMode, "dark-mode", "d", false, "Use dark mode")
-	renderCmd.Flags().StringVarP(&theme, "theme", "t", "dracula", "The syntax highlight theme. It can be a theme name or path to a .tmTheme file")
-	renderCmd.Flags().StringVarP(&language, "language", "l", "", "The language for syntax highlighting. You can use full name (\"Rust\") or file extension (\"rs\")")
-	renderCmd.Flags().StringVarP(&font, "font", "f", "", "The fallback font list. eg. 'Hack; SimSun=31'")
-	renderCmd.Flags().StringVarP(&backgroundColor, "background", "b", "#aaaaff", "Background color of the image")
-	renderCmd.Flags().StringVar(&backgroundImage, "background-image", "", "Background image")
-	renderCmd.Flags().StringVar(&backgroundImageFit, "background-image-fit", "cover", "Background image fit mode. Available modes: contain, cover, fill, stretch, tile")
-	renderCmd.Flags().BoolVar(&showLineNumbers, "no-line-number", false, "Hide the line number")
-	renderCmd.Flags().Float64Var(&cornerRadius, "corner-radius", 10.0, "Corner radius of the image")
-	renderCmd.Flags().BoolVar(&noWindowControls, "no-window-controls", false, "Hide the window controls")
-	renderCmd.Flags().StringVar(&windowTitle, "window-title", "", "Show window title")
-	renderCmd.Flags().Float64Var(&windowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
+	rootCmd.Flags().StringVarP(&config.WindowChrome, "chrome", "C", "mac", "Chrome style. Available styles: mac, windows, gnome")
+	rootCmd.Flags().StringVarP(&config.ChromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
+	rootCmd.Flags().BoolVarP(&config.DarkMode, "dark-mode", "d", false, "Use dark mode")
+	rootCmd.Flags().StringVarP(&config.Theme, "theme", "t", "dracula", "The syntax highlight theme. It can be a theme name or path to a .tmTheme file")
+	rootCmd.Flags().StringVarP(&config.Language, "language", "l", "", "The language for syntax highlighting. You can use full name (\"Rust\") or file extension (\"rs\")")
+	rootCmd.Flags().StringVarP(&config.Font, "font", "f", "", "The fallback font list. eg. 'Hack; SimSun=31'")
+	rootCmd.Flags().StringVarP(&config.BackgroundColor, "background", "b", "#aaaaff", "Background color of the image")
+	rootCmd.Flags().StringVar(&config.BackgroundImage, "background-image", "", "Background image")
+	rootCmd.Flags().StringVar(&config.BackgroundImageFit, "background-image-fit", "cover", "Background image fit mode. Available modes: contain, cover, fill, stretch, tile")
+	rootCmd.Flags().BoolVar(&config.ShowLineNumbers, "no-line-number", false, "Hide the line number")
+	rootCmd.Flags().Float64Var(&config.CornerRadius, "corner-radius", 10.0, "Corner radius of the image")
+	rootCmd.Flags().BoolVar(&config.NoWindowControls, "no-window-controls", false, "Hide the window controls")
+	rootCmd.Flags().StringVar(&config.WindowTitle, "window-title", "", "Show window title")
+	rootCmd.Flags().Float64Var(&config.WindowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
 
 	// Gradient flags
-	renderCmd.Flags().StringVar(&gradientType, "gradient-type", "", "Gradient type. Available types: linear, radial, angular, diamond, spiral, square, star")
-	renderCmd.Flags().StringArrayVar(&gradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops. eg. '--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100'")
-	renderCmd.Flags().Float64Var(&gradientAngle, "gradient-angle", 45, "Gradient angle in degrees")
-	renderCmd.Flags().Float64Var(&gradientCenterX, "gradient-center-x", 0.5, "Center X of the gradient")
-	renderCmd.Flags().Float64Var(&gradientCenterY, "gradient-center-y", 0.5, "Center Y of the gradient")
-	renderCmd.Flags().Float64Var(&gradientIntensity, "gradient-intensity", 5, "Intensity modifier for special gradients")
+	rootCmd.Flags().StringVar(&config.GradientType, "gradient-type", "", "Gradient type. Available types: linear, radial, angular, diamond, spiral, square, star")
+	rootCmd.Flags().StringArrayVar(&config.GradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops. eg. '--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100'")
+	rootCmd.Flags().Float64Var(&config.GradientAngle, "gradient-angle", 45, "Gradient angle in degrees")
+	rootCmd.Flags().Float64Var(&config.GradientCenterX, "gradient-center-x", 0.5, "Center X of the gradient")
+	rootCmd.Flags().Float64Var(&config.GradientCenterY, "gradient-center-y", 0.5, "Center Y of the gradient")
+	rootCmd.Flags().Float64Var(&config.GradientIntensity, "gradient-intensity", 5, "Intensity modifier for special gradients")
 
 	// Padding and layout flags
-	renderCmd.Flags().IntVar(&tabWidth, "tab-width", 4, "Tab width")
-	renderCmd.Flags().IntVar(&startLine, "start-line", 1, "Line to start from")
-	renderCmd.Flags().IntVar(&endLine, "end-line", 0, "Line to end at")
-	renderCmd.Flags().IntVar(&linePadding, "line-pad", 2, "Pad between lines")
-	renderCmd.Flags().IntVar(&padHoriz, "pad-horiz", 80, "Pad horiz")
-	renderCmd.Flags().IntVar(&padVert, "pad-vert", 100, "Pad vert")
-	renderCmd.Flags().IntVar(&codePadTop, "code-pad-top", 10, "Add padding to the top of the code")
-	renderCmd.Flags().IntVar(&codePadBottom, "code-pad-bottom", 10, "Add padding to the bottom of the code")
-	renderCmd.Flags().IntVar(&codePadLeft, "code-pad-left", 10, "Add padding to the X axis of the code")
-	renderCmd.Flags().IntVar(&codePadRight, "code-pad-right", 10, "Add padding to the X axis of the code")
+	rootCmd.Flags().IntVar(&config.TabWidth, "tab-width", 4, "Tab width")
+	rootCmd.Flags().IntVar(&config.StartLine, "start-line", 1, "Line to start from")
+	rootCmd.Flags().IntVar(&config.EndLine, "end-line", 0, "Line to end at")
+	rootCmd.Flags().IntVar(&config.LinePadding, "line-pad", 2, "Pad between lines")
+	rootCmd.Flags().IntVar(&config.PadHoriz, "pad-horiz", 80, "Pad horiz")
+	rootCmd.Flags().IntVar(&config.PadVert, "pad-vert", 100, "Pad vert")
+	rootCmd.Flags().IntVar(&config.CodePadTop, "code-pad-top", 10, "Add padding to the top of the code")
+	rootCmd.Flags().IntVar(&config.CodePadBottom, "code-pad-bottom", 10, "Add padding to the bottom of the code")
+	rootCmd.Flags().IntVar(&config.CodePadLeft, "code-pad-left", 10, "Add padding to the X axis of the code")
+	rootCmd.Flags().IntVar(&config.CodePadRight, "code-pad-right", 10, "Add padding to the X axis of the code")
 
 	// Shadow flags
-	renderCmd.Flags().Float64Var(&shadowBlurRadius, "shadow-blur", 0, "Blur radius of the shadow. (set it to 0 to hide shadow)")
-	renderCmd.Flags().StringVar(&shadowColor, "shadow-color", "#00000033", "Color of shadow")
-	renderCmd.Flags().Float64Var(&shadowSpread, "shadow-spread", 0, "Spread radius of the shadow")
-	renderCmd.Flags().Float64Var(&shadowOffsetX, "shadow-offset-x", 0, "Shadow's offset in X axis")
-	renderCmd.Flags().Float64Var(&shadowOffsetY, "shadow-offset-y", 0, "Shadow's offset in Y axis")
+	rootCmd.Flags().Float64Var(&config.ShadowBlurRadius, "shadow-blur", 0, "Blur radius of the shadow. (set it to 0 to hide shadow)")
+	rootCmd.Flags().StringVar(&config.ShadowColor, "shadow-color", "#00000033", "Color of shadow")
+	rootCmd.Flags().Float64Var(&config.ShadowSpread, "shadow-spread", 0, "Spread radius of the shadow")
+	rootCmd.Flags().Float64Var(&config.ShadowOffsetX, "shadow-offset-x", 0, "Shadow's offset in X axis")
+	rootCmd.Flags().Float64Var(&config.ShadowOffsetY, "shadow-offset-y", 0, "Shadow's offset in Y axis")
 
 	// Highlighting flags
-	renderCmd.Flags().StringVar(&highlightLines, "highlight-lines", "", "Lines to highlight. eg. '1-3;4'")
+	rootCmd.Flags().StringVar(&config.HighlightLines, "highlight-lines", "", "Lines to highlight. eg. '1-3;4'")
 
 	// Additional utility commands
 	rootCmd.AddCommand(
-		renderCmd,
+		&cobra.Command{
+			Use:   "themes",
+			Short: "List available themes",
+			Run: func(cmd *cobra.Command, args []string) {
+				themes := syntax.GetAvailableStyles()
+				for _, theme := range themes {
+					fmt.Println(theme)
+				}
+			},
+		},
+		&cobra.Command{
+			Use:   "languages",
+			Short: "List available languages",
+			Run: func(cmd *cobra.Command, args []string) {
+				languages := syntax.GetAvailableLanguages(false)
+				for _, lang := range languages {
+					fmt.Println(lang)
+				}
+			},
+		},
 		&cobra.Command{
 			Use:   "version",
 			Short: "Print version information",
 			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Printf("goshot %s\n", version.Version)
-			},
-		},
-		&cobra.Command{
-			Use:   "list-themes",
-			Short: "List all available themes",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Available themes:")
-				styles := syntax.GetAvailableStyles()
-				for _, style := range styles {
-					fmt.Printf("  %s\n", style)
-				}
-			},
-		},
-		&cobra.Command{
-			Use:   "list-languages",
-			Short: "List all available languages",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Available languages:")
-				languages := syntax.GetAvailableLanguages(false)
-				for _, lang := range languages {
-					fmt.Printf("  %s\n", lang)
-				}
-			},
-		},
-		&cobra.Command{
-			Use:   "list-fonts",
-			Short: "List all available fonts in your system",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Println("Available fonts:")
-				fonts := fonts.ListFonts()
-				for _, font := range fonts {
-					fmt.Printf("  %s\n", font)
-				}
-			},
-		},
-		&cobra.Command{
-			Use:   "config-file",
-			Short: "Show the path of goshot config file",
-			Run: func(cmd *cobra.Command, args []string) {
-				// Implementation will go here
+				fmt.Printf("Version: %s\n", version.Version)
+				fmt.Printf("Revision: %s\n", version.Revision)
+				fmt.Printf("Date: %s\n", version.Date)
 			},
 		},
 	)
-}
 
-func main() {
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func renderImage(cmd *cobra.Command, args []string) {
-	if interactive {
-		defaultConfig := &InteractiveConfig{
-			Theme:           theme,
-			WindowChrome:    windowChrome,
-			DarkMode:        darkMode,
-			Font:            font,
-			TabWidth:        tabWidth,
-			PadHoriz:        padHoriz,
-			PadVert:         padVert,
-			ShowLineNumbers: showLineNumbers,
-			CornerRadius:    cornerRadius,
-			WindowControls:  noWindowControls,
-			WindowTitle:     windowTitle,
-			ShadowBlur:      shadowBlurRadius,
-			ShadowColor:     shadowColor,
-			ShadowOffsetX:   shadowOffsetX,
-			ShadowOffsetY:   shadowOffsetY,
-			HighlightLines:  highlightLines,
-		}
-
-		config, err := StartInteractiveMode(defaultConfig)
-		if err != nil {
-			fmt.Printf("Error in interactive mode: %v\n", err)
-			os.Exit(1)
-		}
-
-		// Update the global variables with the values from interactive mode
-		theme = config.Theme
-		windowChrome = config.WindowChrome
-		darkMode = config.DarkMode
-		font = config.Font
-		tabWidth = config.TabWidth
-		padHoriz = config.PadHoriz
-		padVert = config.PadVert
-		showLineNumbers = config.ShowLineNumbers
-		cornerRadius = config.CornerRadius
-		noWindowControls = config.WindowControls
-		windowTitle = config.WindowTitle
-		shadowBlurRadius = config.ShadowBlur
-		shadowColor = config.ShadowColor
-		shadowOffsetX = config.ShadowOffsetX
-		shadowOffsetY = config.ShadowOffsetY
-		highlightLines = config.HighlightLines
-		outputFile = config.Output
-		toClipboard = config.ToClipboard
-
-		if config.Input != "" {
-			args = []string{config.Input}
-		}
-	}
-
+func renderImage(config *Config, args []string) error {
 	// Get the input code
 	var code string
 	var err error
 
 	switch {
-	case fromClipboard:
+	case config.FromClipboard:
 		// Read from clipboard
 		code, err = clipboard.ReadAll()
 		if err != nil {
-			fmt.Printf("failed to read from clipboard: %v", err)
-			return
+			return fmt.Errorf("failed to read from clipboard: %v", err)
 		}
 	case len(args) > 0:
 		// Read from file
 		content, err := os.ReadFile(args[0])
 		if err != nil {
-			fmt.Printf("failed to read file: %v", err)
-			return
+			return fmt.Errorf("failed to read file: %v", err)
 		}
 		code = string(content)
 	default:
 		// Read from stdin
 		content, err := io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Printf("failed to read from stdin: %v", err)
-			return
+			return fmt.Errorf("failed to read from stdin: %v", err)
 		}
 		code = string(content)
 	}
@@ -299,17 +224,17 @@ func renderImage(cmd *cobra.Command, args []string) {
 
 	// Set window chrome
 	themeVariant := chrome.ThemeVariantLight
-	if darkMode {
+	if config.DarkMode {
 		themeVariant = chrome.ThemeVariantDark
 	}
 
-	if noWindowControls {
+	if config.NoWindowControls {
 		window := chrome.NewBlankChrome().
-			SetCornerRadius(windowCornerRadius)
+			SetCornerRadius(config.WindowCornerRadius)
 		canvas.SetChrome(window)
 	} else {
 		var window chrome.Chrome
-		switch windowChrome {
+		switch config.WindowChrome {
 		case "mac":
 			window = chrome.NewMacChrome(chrome.MacStyleSequoia)
 		case "windows":
@@ -317,36 +242,33 @@ func renderImage(cmd *cobra.Command, args []string) {
 		case "gnome":
 			window = chrome.NewGNOMEChrome(chrome.GNOMEStyleAdwaita)
 		default:
-			fmt.Printf("invalid chrome style: %s", windowChrome)
-			return
+			return fmt.Errorf("invalid chrome style: %s", config.WindowChrome)
 		}
 
-		if chromeThemeName == "" {
+		if config.ChromeThemeName == "" {
 			window = window.SetVariant(themeVariant)
 		} else {
-			window = window.SetThemeByName(chromeThemeName, themeVariant)
+			window = window.SetThemeByName(config.ChromeThemeName, themeVariant)
 		}
 
-		window = window.SetTitle(windowTitle).SetCornerRadius(windowCornerRadius)
+		window = window.SetTitle(config.WindowTitle).SetCornerRadius(config.WindowCornerRadius)
 		canvas.SetChrome(window)
 	}
 
 	// Set background
 	var bg background.Background
-	if backgroundImage != "" {
-		file, err := os.Open(backgroundImage)
+	if config.BackgroundImage != "" {
+		file, err := os.Open(config.BackgroundImage)
 		if err != nil {
-			fmt.Printf("failed to open background image: %v", err)
-			return
+			return fmt.Errorf("failed to open background image: %v", err)
 		}
 		defer file.Close()
 		backgroundImage, _, err := image.Decode(file)
 		if err != nil {
-			fmt.Printf("failed to decode background image: %v", err)
-			return
+			return fmt.Errorf("failed to decode background image: %v", err)
 		}
 		var fit background.ImageScaleMode
-		switch backgroundImageFit {
+		switch config.BackgroundImageFit {
 		case "fit":
 			fit = background.ImageScaleFit
 		case "cover":
@@ -358,19 +280,20 @@ func renderImage(cmd *cobra.Command, args []string) {
 		case "tile":
 			fit = background.ImageScaleTile
 		default:
-			fmt.Printf("invalid background image fit mode: %s", backgroundImageFit)
-			return
+			return fmt.Errorf("invalid background image fit mode: %s", config.BackgroundImageFit)
 		}
-		bg = background.NewImageBackground(backgroundImage).SetScaleMode(fit)
-	} else if gradientType != "" {
-		stops, err := parseGradientStops(gradientStops)
+		bg = background.
+			NewImageBackground(backgroundImage).
+			SetScaleMode(fit).
+			SetPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
+	} else if config.GradientType != "" {
+		stops, err := parseGradientStops(config.GradientStops)
 		if err != nil {
-			fmt.Printf("invalid gradient stops: %v", err)
-			return
+			return fmt.Errorf("invalid gradient stops: %v", err)
 		}
 
 		var gradient background.GradientType
-		switch gradientType {
+		switch config.GradientType {
 		case "linear":
 			gradient = background.LinearGradient
 		case "radial":
@@ -386,53 +309,50 @@ func renderImage(cmd *cobra.Command, args []string) {
 		case "star":
 			gradient = background.StarGradient
 		default:
-			fmt.Printf("invalid gradient type: %s", gradientType)
-			return
+			return fmt.Errorf("invalid gradient type: %s", config.GradientType)
 		}
 
 		bg = background.NewGradientBackground(gradient, stops...).
-			SetAngle(gradientAngle).
-			SetCenter(gradientCenterX, gradientCenterY).
-			SetIntensity(gradientIntensity).
-			SetCenter(gradientCenterX, gradientCenterY).
-			SetPaddingDetailed(padHoriz, padVert, padHoriz, padVert)
-	} else if backgroundColor != "" {
+			SetAngle(config.GradientAngle).
+			SetCenter(config.GradientCenterX, config.GradientCenterY).
+			SetIntensity(config.GradientIntensity).
+			SetCenter(config.GradientCenterX, config.GradientCenterY).
+			SetPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
+	} else if config.BackgroundColor != "" {
 		// Parse background color
 		var bgColor color.Color
-		if backgroundColor == "transparent" {
+		if config.BackgroundColor == "transparent" {
 			bgColor = color.Transparent
 		} else {
-			bgColor, err = parseHexColor(backgroundColor)
+			bgColor, err = parseHexColor(config.BackgroundColor)
 		}
 
 		if err != nil {
-			fmt.Printf("invalid background color: %v", err)
-			return
+			return fmt.Errorf("invalid background color: %v", err)
 		}
 
 		bg = background.NewColorBackground().
 			SetColor(bgColor).
-			SetPaddingDetailed(padHoriz, padVert, padVert, padHoriz)
+			SetPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
 	}
 
 	if bg != nil {
 		// Configure shadow if enabled
-		if shadowBlurRadius > 0 {
-			shadowCol, err := parseHexColor(shadowColor)
+		if config.ShadowBlurRadius > 0 {
+			shadowCol, err := parseHexColor(config.ShadowColor)
 			if err != nil {
-				fmt.Printf("invalid shadow color: %v", err)
-				return
+				return fmt.Errorf("invalid shadow color: %v", err)
 			}
 			bg = bg.SetShadow(background.NewShadow().
-				SetBlur(shadowBlurRadius).
-				SetOffset(shadowOffsetX, shadowOffsetY).
+				SetBlur(config.ShadowBlurRadius).
+				SetOffset(config.ShadowOffsetX, config.ShadowOffsetY).
 				SetColor(shadowCol).
-				SetSpread(shadowSpread))
+				SetSpread(config.ShadowSpread))
 		}
 
 		// Configure corner radius
-		if cornerRadius > 0 {
-			bg = bg.SetCornerRadius(cornerRadius)
+		if config.CornerRadius > 0 {
+			bg = bg.SetCornerRadius(config.CornerRadius)
 		}
 
 		// Set background
@@ -441,11 +361,10 @@ func renderImage(cmd *cobra.Command, args []string) {
 
 	// Configure highlighted lines
 	highlightedLines := []render.LineRange{}
-	if highlightLines != "" {
-		lines, err := parseHighlightLines(highlightLines)
+	if config.HighlightLines != "" {
+		lines, err := parseHighlightLines(config.HighlightLines)
 		if err != nil {
-			fmt.Printf("invalid highlight lines: %v", err)
-			return
+			return fmt.Errorf("invalid highlight lines: %v", err)
 		}
 		for _, line := range lines {
 			highlightedLines = append(highlightedLines, render.LineRange{Start: line, End: line})
@@ -455,33 +374,32 @@ func renderImage(cmd *cobra.Command, args []string) {
 	// Get font
 	fontSize := 14.0
 	var requestedFont *fonts.Font
-	if font != "" {
+	if config.Font != "" {
 		var fontStr string
-		fontStr, fontSize = parseFonts(font)
+		fontStr, fontSize = parseFonts(config.Font)
 		if fontStr != "" {
 			requestedFont, err = fonts.GetFont(fontStr, nil)
 			if err != nil {
-				fmt.Printf("failed to get font: %v", err)
-				return
+				return fmt.Errorf("failed to get font: %v", err)
 			}
 		}
 	}
 
 	// Configure code style
 	canvas.SetCodeStyle(&render.CodeStyle{
-		Language:        language,
-		Theme:           strings.ToLower(theme),
+		Language:        config.Language,
+		Theme:           strings.ToLower(config.Theme),
 		FontFamily:      requestedFont,
 		FontSize:        fontSize,
-		TabWidth:        tabWidth,
-		PaddingLeft:     codePadLeft,
-		PaddingRight:    codePadRight,
-		PaddingTop:      codePadTop,
-		PaddingBottom:   codePadBottom,
-		ShowLineNumbers: !showLineNumbers,
+		TabWidth:        config.TabWidth,
+		PaddingLeft:     config.CodePadLeft,
+		PaddingRight:    config.CodePadRight,
+		PaddingTop:      config.CodePadTop,
+		PaddingBottom:   config.CodePadBottom,
+		ShowLineNumbers: !config.ShowLineNumbers,
 		LineNumberRange: render.LineRange{
-			Start: startLine,
-			End:   endLine,
+			Start: config.StartLine,
+			End:   config.EndLine,
 		},
 		LineHighlightRanges: highlightedLines,
 	})
@@ -489,131 +407,34 @@ func renderImage(cmd *cobra.Command, args []string) {
 	// Render the image
 	img, err := canvas.RenderToImage(code)
 	if err != nil {
-		fmt.Printf("failed to render image: %v", err)
-		return
+		return fmt.Errorf("failed to render image: %v", err)
 	}
 
-	if outputFile != "" {
-		if err := render.SaveAsPNG(img, outputFile); err != nil {
-			fmt.Printf("failed to save image: %v", err)
-			return
-		}
-	}
-
-	if toClipboard {
+	if config.ToClipboard || config.ToStdout {
 		pngBuf := bytes.NewBuffer(nil)
 		if err := png.Encode(pngBuf, img); err != nil {
-			fmt.Printf("failed to encode image to png: %v", err)
-			return
+			return fmt.Errorf("failed to encode image to png: %v", err)
 		}
-		clipboard.WriteAll(pngBuf.String())
-	}
-}
 
-// Helper functions
-func parseHexColor(hex string) (color.Color, error) {
-	hex = strings.TrimPrefix(hex, "#")
-	var r, g, b, a uint8
-
-	switch len(hex) {
-	case 6:
-		_, err := fmt.Sscanf(hex, "%02x%02x%02x", &r, &g, &b)
-		if err != nil {
-			return nil, err
-		}
-		a = 255
-	case 8:
-		_, err := fmt.Sscanf(hex, "%02x%02x%02x%02x", &r, &g, &b, &a)
-		if err != nil {
-			return nil, err
-		}
-	default:
-		return nil, fmt.Errorf("invalid hex color: %s", hex)
-	}
-
-	return color.RGBA{R: r, G: g, B: b, A: a}, nil
-}
-
-func parseHighlightLines(input string) ([]int, error) {
-	var result []int
-	parts := strings.Split(input, ";")
-
-	for _, part := range parts {
-		if strings.Contains(part, "-") {
-			// Handle range (e.g., "1-3")
-			var start, end int
-			if _, err := fmt.Sscanf(part, "%d-%d", &start, &end); err != nil {
-				return nil, err
-			}
-			for i := start; i <= end; i++ {
-				result = append(result, i)
-			}
-		} else {
-			// Handle single line
-			var line int
-			if _, err := fmt.Sscanf(part, "%d", &line); err != nil {
-				return nil, err
-			}
-			result = append(result, line)
-		}
-	}
-
-	return result, nil
-}
-
-// parseFonts takes in a string of fonts and returns the first font
-// that is available on the system.
-// Ex. "JetBrains Mono; DejaVu Sans=30"
-func parseFonts(input string) (string, float64) {
-	for _, fontSpec := range strings.Split(input, ";") {
-		parts := strings.Split(strings.TrimSpace(fontSpec), "=")
-		fontName := strings.TrimSpace(parts[0])
-		fontSize := 14.0
-		if len(parts) > 1 {
-			if parsedSize, err := strconv.ParseFloat(strings.TrimSpace(parts[1]), 64); err == nil {
-				fontSize = parsedSize
+		if config.ToClipboard {
+			err := clipboard.WriteAll(pngBuf.String())
+			if err != nil {
+				return fmt.Errorf("failed to copy image to clipboard: %v", err)
 			}
 		}
 
-		if fonts.IsFontAvailable(fontName) {
-			return fontName, fontSize
+		if config.ToStdout {
+			_, err := os.Stdout.Write(pngBuf.Bytes())
+			if err != nil {
+				return fmt.Errorf("failed to write image to stdout: %v", err)
+			}
 		}
+		return nil
 	}
 
-	return "", 14.0
-}
-
-// parseGradientStops takes in a string slice of gradient stops and returns
-// a slice of background.GradientStop.
-func parseGradientStops(input []string) ([]background.GradientStop, error) {
-	var result []background.GradientStop
-	for _, part := range input {
-		parts := strings.Split(part, ";")
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid gradient stop format: %s; expected hex color and percentage (e.g., #ff0000;50)", part)
-		}
-
-		hexColor := strings.TrimSpace(parts[0])
-		positionStr := strings.TrimSpace(parts[1])
-
-		color, err := parseHexColor(hexColor)
-		if err != nil {
-			return nil, fmt.Errorf("invalid color in gradient stop: %s", err)
-		}
-
-		position, err := strconv.ParseFloat(positionStr, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid position in gradient stop: %s", err)
-		}
-
-		if position < 0 || position > 100 {
-			return nil, fmt.Errorf("gradient stop position must be between 0 and 100: %f", position)
-		}
-
-		result = append(result, background.GradientStop{
-			Color:    color,
-			Position: position / 100, // Convert percentage to decimal
-		})
+	if err := render.SaveAsPNG(img, config.OutputFile); err != nil {
+		return fmt.Errorf("failed to save image: %v", err)
 	}
-	return result, nil
+
+	return nil
 }
