@@ -8,7 +8,9 @@ import (
 	"image/png"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -63,11 +65,14 @@ type Config struct {
 	Interactive bool
 
 	// Input/Output options
-	Input         string
-	OutputFile    string
-	ToClipboard   bool
-	FromClipboard bool
-	ToStdout      bool
+	Input          string
+	OutputFile     string
+	ToClipboard    bool
+	FromClipboard  bool
+	ToStdout       bool
+	ExecuteCommand string
+	ShowCommand    bool
+	AutoTitle      bool
 
 	// Appearance
 	WindowChrome       string
@@ -134,8 +139,13 @@ func main() {
 				os.Exit(1)
 			}
 
+			// Skip processing for subcommands
+			if cmd.Name() != "goshot" {
+				return
+			}
+
 			if err := renderImage(&config, true, args); err != nil {
-				fmt.Fprintln(os.Stderr, styles.error.Render(fmt.Sprintf("Error: %v", err)))
+				fmt.Println(styles.error.Render(err.Error()))
 				os.Exit(1)
 			}
 		},
@@ -155,6 +165,10 @@ func main() {
 	outputFlagSet.BoolVarP(&config.ToClipboard, "to-clipboard", "c", false, "Copy the output image to clipboard")
 	outputFlagSet.BoolVar(&config.FromClipboard, "from-clipboard", false, "Read input from clipboard")
 	outputFlagSet.BoolVarP(&config.ToStdout, "to-stdout", "s", false, "Write output to stdout")
+	outputFlagSet.StringVar(&config.ExecuteCommand, "execute", "", "Execute command and use output as input")
+	outputFlagSet.BoolVar(&config.ShowCommand, "show-command", false, "Show the command used to generate the screenshot")
+	outputFlagSet.BoolVar(&config.AutoTitle, "auto-title", false, "Automatically set the window title to the filename or command")
+
 	rootCmd.Flags().AddFlagSet(outputFlagSet)
 	rfg[outputFlagSet] = "output"
 
@@ -195,8 +209,8 @@ func main() {
 	rfg[layoutFlagSet] = "layout"
 
 	// Gradient flags
-	gradientFlagSet.StringVar(&config.GradientType, "gradient-type", "", "Gradient type (linear, radial, angular, diamond, spiral, square, star)")
-	gradientFlagSet.StringArrayVar(&config.GradientStops, "gradient-stop", []string{"#232323;0", "#383838;100"}, "Gradient stops (--gradient-stop '#ff0000;0' --gradient-stop '#00ff00;100')")
+	gradientFlagSet.StringVarP(&config.GradientType, "gradient-type", "g", "", "Gradient type (linear, radial, angular, diamond, spiral, square, star)")
+	gradientFlagSet.StringArrayVarP(&config.GradientStops, "gradient-stop", "G", []string{"#232323;0", "#383838;100"}, "Gradient stops (-G '#ff0000;0' -G '#00ff00;100')")
 	gradientFlagSet.Float64Var(&config.GradientAngle, "gradient-angle", 45, "Gradient angle in degrees")
 	gradientFlagSet.Float64Var(&config.GradientCenterX, "gradient-center-x", 0.5, "Gradient center X")
 	gradientFlagSet.Float64Var(&config.GradientCenterY, "gradient-center-y", 0.5, "Gradient center Y")
@@ -212,6 +226,9 @@ func main() {
 	shadowFlagSet.Float64Var(&config.ShadowOffsetY, "shadow-offset-y", 0, "Shadow Y offset")
 	rootCmd.Flags().AddFlagSet(shadowFlagSet)
 	rfg[shadowFlagSet] = "shadow"
+
+	rootCmd.MarkFlagsMutuallyExclusive("output", "to-clipboard", "to-stdout")
+	rootCmd.MarkFlagsMutuallyExclusive("from-clipboard", "execute")
 
 	rootCmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Println(styles.subtitle.Render("Usage:"))
@@ -296,8 +313,26 @@ func main() {
 			Short: "List available themes",
 			Run: func(cmd *cobra.Command, args []string) {
 				themes := syntax.GetAvailableStyles()
+				sort.Strings(themes)
+
+				fmt.Println(styles.subtitle.Render("Available Themes:"))
+				fmt.Println()
+
 				for _, theme := range themes {
-					fmt.Println(theme)
+					fmt.Printf("  %s\n", styles.info.Render(theme))
+				}
+			},
+		},
+		&cobra.Command{
+			Use:   "fonts",
+			Short: "List available fonts",
+			Run: func(cmd *cobra.Command, args []string) {
+				fonts := fonts.ListFonts()
+				sort.Strings(fonts)
+
+				fmt.Println(styles.subtitle.Render("Available Fonts:"))
+				for _, font := range fonts {
+					fmt.Printf("  %s\n", styles.info.Render(font))
 				}
 			},
 		},
@@ -306,8 +341,32 @@ func main() {
 			Short: "List available languages",
 			Run: func(cmd *cobra.Command, args []string) {
 				languages := syntax.GetAvailableLanguages(false)
+				sort.Strings(languages)
+
+				fmt.Println(styles.subtitle.Render("Available Languages:"))
+				fmt.Println()
+
+				// Group languages by first letter for better readability
+				grouped := make(map[string][]string)
 				for _, lang := range languages {
-					fmt.Println(lang)
+					firstChar := strings.ToUpper(string(lang[0]))
+					grouped[firstChar] = append(grouped[firstChar], lang)
+				}
+
+				// Get sorted keys
+				var keys []string
+				for k := range grouped {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+
+				// Print grouped languages
+				for _, key := range keys {
+					fmt.Printf("%s\n", styles.info.Render(key))
+					for _, lang := range grouped[key] {
+						fmt.Printf("  %s\n", lang)
+					}
+					fmt.Println()
 				}
 			},
 		},
@@ -334,6 +393,20 @@ func renderImage(config *Config, echo bool, args []string) error {
 	var err error
 
 	switch {
+	case config.ExecuteCommand != "":
+		// Execute command and capture output
+		cmd := exec.Command("sh", "-c", config.ExecuteCommand)
+		var stdout bytes.Buffer
+		cmd.Stdout = &stdout
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to execute command: %v", err)
+		}
+		config.Language = "shell"
+		if config.ShowCommand {
+			code = fmt.Sprintf("$ %s\n%s", config.ExecuteCommand, stdout.String())
+		} else {
+			code = stdout.String()
+		}
 	case config.FromClipboard:
 		// Read from clipboard
 		code, err = clipboard.ReadAll()
@@ -388,7 +461,17 @@ func renderImage(config *Config, echo bool, args []string) error {
 			window = window.SetThemeByName(config.ChromeThemeName, themeVariant)
 		}
 
-		window = window.SetTitle(config.WindowTitle).SetCornerRadius(config.WindowCornerRadius)
+		if config.AutoTitle {
+			if len(args) > 0 {
+				window = window.SetTitle(filepath.Base(args[0]))
+			} else if config.ExecuteCommand != "" {
+				window = window.SetTitle(config.ExecuteCommand)
+			}
+		} else {
+			window = window.SetTitle(config.WindowTitle)
+		}
+
+		window = window.SetCornerRadius(config.WindowCornerRadius)
 		canvas.SetChrome(window)
 	}
 
@@ -576,7 +659,7 @@ func renderImage(config *Config, echo bool, args []string) error {
 	err = saveImage(img, config)
 	if err == nil {
 		if echo {
-			fmt.Println(styles.success.Render(" RENDERED "))
+			fmt.Println(styles.success.Render(" WROTE ") + " " + config.OutputFile)
 		}
 	} else {
 		return fmt.Errorf("failed to save image: %v", err)
