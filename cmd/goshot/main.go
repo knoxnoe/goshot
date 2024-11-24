@@ -32,13 +32,16 @@ import (
 // Styles defines our CLI styles
 var (
 	styles = struct {
-		title      lipgloss.Style
-		subtitle   lipgloss.Style
-		error      lipgloss.Style
-		info       lipgloss.Style
-		groupTitle lipgloss.Style
-		successBox lipgloss.Style
-		infoBox    lipgloss.Style
+		title        lipgloss.Style
+		subtitle     lipgloss.Style
+		error        lipgloss.Style
+		info         lipgloss.Style
+		groupTitle   lipgloss.Style
+		successBox   lipgloss.Style
+		infoBox      lipgloss.Style
+		flagStyle    lipgloss.Style
+		descStyle    lipgloss.Style
+		defaultStyle lipgloss.Style
 	}{
 		title: lipgloss.NewStyle().
 			Bold(true).
@@ -63,6 +66,10 @@ var (
 		groupTitle: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.AdaptiveColor{Light: "#d75f00", Dark: "#FFB86C"}),
+
+		flagStyle:    lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#50FA7B"}),
+		descStyle:    lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#303030", Dark: "#F8F8F2"}),
+		defaultStyle: lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#666666", Dark: "#6272A4"}).Italic(true),
 	}
 )
 
@@ -125,15 +132,6 @@ type Config struct {
 
 	// Highlighting
 	HighlightLines string
-}
-
-// logMessage prints a styled message with consistent alignment
-func logMessage(box lipgloss.Style, tag string, message string) {
-	// Set a consistent width for the tag box and center the text
-	const boxWidth = 11 // 9 characters + 2 padding spaces
-	paddedTag := fmt.Sprintf("%*s", -boxWidth, tag)
-	centeredBox := box.Width(boxWidth).Align(lipgloss.Center)
-	fmt.Println(centeredBox.Render(paddedTag) + " " + styles.info.Render(message))
 }
 
 func main() {
@@ -242,65 +240,73 @@ func main() {
 	rootCmd.Flags().AddFlagSet(shadowFlagSet)
 	rfg[shadowFlagSet] = "shadow"
 
-	rootCmd.MarkFlagsMutuallyExclusive("output", "to-clipboard", "to-stdout")
-	rootCmd.MarkFlagsMutuallyExclusive("from-clipboard", "execute")
-
 	rootCmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Println(styles.subtitle.Render("Usage:"))
-		fmt.Printf("  %s [flags] [file]\n", cmd.Name())
+		fmt.Printf("  %s", cmd.Name())
+
+		if cmd == rootCmd {
+			fmt.Printf(" [flags] [file]")
+		} else if cmd.HasAvailableLocalFlags() {
+			fmt.Printf(" [flags]")
+		}
+		fmt.Println()
 		fmt.Println()
 
-		// Flags by group
-		fmt.Println(styles.subtitle.Render("Flags:"))
-		flagStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#50FA7B"})
-		descStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#303030", Dark: "#F8F8F2"})
-		defaultStyle := lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#666666", Dark: "#6272A4"}).Italic(true)
+		// Only show flags for root command
+		if cmd == rootCmd {
+			// Flags by group
+			fmt.Println(styles.subtitle.Render("Flags:"))
 
-		for fs, name := range rfg {
-			// Print group title
-			fmt.Println(styles.groupTitle.Render("  " + cases.Title(language.English).String(name) + ":"))
+			for fs, name := range rfg {
+				// Print group title
+				fmt.Println(styles.groupTitle.Render("  " + cases.Title(language.English).String(name) + ":"))
 
-			// Get all flags in this group
-			fs.VisitAll(func(f *pflag.Flag) {
-				// Format the flag name part
-				namePart := "  "
-				if f.Shorthand != "" {
-					namePart += lipgloss.NewStyle().
-						Bold(true).
-						Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
-						Render(fmt.Sprintf("-%s, --%s", f.Shorthand, f.Name))
-				} else {
-					namePart += lipgloss.NewStyle().
-						Bold(true).
-						Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
-						Render(fmt.Sprintf("--%s", f.Name))
-				}
+				// Get all flags in this group
+				fs.VisitAll(func(f *pflag.Flag) {
+					// Format the flag name part
+					namePart := "  "
+					if f.Shorthand != "" {
+						namePart += lipgloss.NewStyle().
+							Bold(true).
+							Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
+							Render(fmt.Sprintf("-%s, --%s", f.Shorthand, f.Name))
+					} else {
+						namePart += lipgloss.NewStyle().
+							Bold(true).
+							Foreground(lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}).
+							Render(fmt.Sprintf("--%s", f.Name))
+					}
 
-				// Add type if not a boolean
-				if f.Value.Type() != "bool" {
-					namePart += " " + defaultStyle.Render(f.Value.Type())
-				}
+					// Add type if not a boolean
+					if f.Value.Type() != "bool" {
+						namePart += " " + styles.defaultStyle.Render(f.Value.Type())
+					}
 
-				// Format description and default value
-				desc := f.Usage
-				if f.DefValue != "" && f.DefValue != "false" {
-					desc += defaultStyle.Render(fmt.Sprintf(" (default %q)", f.DefValue))
-				}
+					// Format description and default value
+					desc := f.Usage
+					if f.DefValue != "" && f.DefValue != "false" {
+						desc += styles.defaultStyle.Render(fmt.Sprintf(" (default %q)", f.DefValue))
+					}
 
-				// Calculate padding
-				padding := 40 - lipgloss.Width(namePart)
-				if padding < 2 {
-					padding = 2
-				}
+					// Calculate padding
+					padding := 40 - lipgloss.Width(namePart)
+					if padding < 2 {
+						padding = 2
+					}
 
-				// Print the formatted flag line
-				fmt.Printf("%s%s%s\n",
-					namePart,
-					strings.Repeat(" ", padding),
-					descStyle.Render(desc),
-				)
-			})
-			fmt.Println()
+					// Print the formatted flag line
+					fmt.Printf("%s%s%s\n",
+						namePart,
+						strings.Repeat(" ", padding),
+						styles.descStyle.Render(desc),
+					)
+				})
+				fmt.Println()
+			}
+		} else if cmd.HasAvailableLocalFlags() {
+			// For subcommands, use cobra's default flag display
+			fmt.Println(styles.subtitle.Render("Flags:"))
+			fmt.Println(cmd.LocalFlags().FlagUsages())
 		}
 
 		// Additional commands
@@ -309,9 +315,9 @@ func main() {
 			for _, subCmd := range cmd.Commands() {
 				if !subCmd.Hidden {
 					fmt.Printf("  %s%s%s\n",
-						flagStyle.Render(subCmd.Name()),
+						styles.flagStyle.Render(subCmd.Name()),
 						strings.Repeat(" ", 20-len(subCmd.Name())),
-						descStyle.Render(subCmd.Short),
+						styles.descStyle.Render(subCmd.Short),
 					)
 				}
 			}
@@ -712,6 +718,8 @@ func renderImage(config *Config, echo bool, args []string) error {
 			return fmt.Errorf("failed to encode image to png: %v", err)
 		}
 
+		// NOTE: Not all clipboard backends recognize the png header.
+		//       wl-clipboard and xclip both should.
 		if config.ToClipboard {
 			err := clipboard.WriteAll(pngBuf.String())
 			if err != nil {
@@ -728,6 +736,10 @@ func renderImage(config *Config, echo bool, args []string) error {
 			if err != nil {
 				return fmt.Errorf("failed to write image to stdout: %v", err)
 			}
+
+			if echo {
+				logMessage(styles.successBox, "WROTE", "to stdout")
+			}
 		}
 		return nil
 	}
@@ -742,6 +754,15 @@ func renderImage(config *Config, echo bool, args []string) error {
 	}
 
 	return nil
+}
+
+// logMessage prints a styled message with consistent alignment
+func logMessage(box lipgloss.Style, tag string, message string) {
+	// Set a consistent width for the tag box and center the text
+	const boxWidth = 11 // 9 characters + 2 padding spaces
+	paddedTag := fmt.Sprintf("%*s", -boxWidth, tag)
+	centeredBox := box.Width(boxWidth).Align(lipgloss.Center)
+	fmt.Fprintln(os.Stderr, centeredBox.Render(paddedTag)+" "+styles.info.Render(message))
 }
 
 func saveImage(img image.Image, config *Config) error {

@@ -1,19 +1,24 @@
 #!/usr/bin/make -f
 
+export DH_VERBOSE = 1
 export GOMODCACHE=$(CURDIR)/.go/pkg/mod
 export GOCACHE=$(CURDIR)/.go/cache
 export HOME=$(CURDIR)
 export GOPATH=$(CURDIR)/.go
 export GOPROXY=off
 export GOSUMDB=off
+export GO111MODULE=on
+export CGO_ENABLED=0
 
 %:
 	dh $@
 
 override_dh_auto_build:
-	# Extract vendor dependencies
-	tar xf vendor.tar.gz
+	# Build using vendored dependencies
 	mkdir -p .go/pkg/mod .go/cache
+	go mod download
+	go mod verify
+	go mod vendor
 	go build -mod=vendor -o goshot ./cmd/goshot
 
 override_dh_auto_install:
@@ -23,5 +28,5 @@ override_dh_auto_test:
 	# Skip tests during package build
 
 override_dh_auto_clean:
-	rm -rf .go vendor
-	dh_auto_clean
+	rm -rf .go goshot
+	find . -name "*.a" -delete

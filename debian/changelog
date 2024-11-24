@@ -1,4 +1,4 @@
-goshot (0.4.6-1) unstable; urgency=medium
+goshot (0.6.1-ubuntu.1) jammy; urgency=medium
 
   * Initial release
   * Features include:
