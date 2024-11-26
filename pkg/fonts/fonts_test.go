@@ -2,6 +2,8 @@ package fonts
 
 import (
 	"testing"
+
+	"golang.org/x/image/math/fixed"
 )
 
 func TestGetFont(t *testing.T) {
@@ -166,22 +168,154 @@ func TestListFonts(t *testing.T) {
 	}
 }
 
-func TestFontStyle(t *testing.T) {
-	style := FontStyle{
-		Weight: WeightBold,
-		Italic: true,
+func TestMonospaceDetection(t *testing.T) {
+	tests := []struct {
+		name     string
+		fontName string
+		wantMono bool
+	}{
+		{
+			name:     "JetBrains (should be mono)",
+			fontName: "JetBrains",
+			wantMono: true,
+		},
+		{
+			name:     "Inter (should not be mono)",
+			fontName: "Inter",
+			wantMono: false,
+		},
 	}
 
-	font, err := GetFont("Cantarell", &style)
-	if err != nil {
-		t.Fatalf("Failed to get font with style: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			font, err := GetFont(tt.fontName, nil)
+			if err != nil {
+				t.Fatalf("Failed to get font %s: %v", tt.fontName, err)
+			}
+
+			if got := font.IsMono(); got != tt.wantMono {
+				t.Errorf("IsMono() = %v, want %v", got, tt.wantMono)
+			}
+		})
+	}
+}
+
+func TestGetMaxWidth(t *testing.T) {
+	tests := []struct {
+		name     string
+		fontName string
+	}{
+		{
+			name:     "Get max width for mono font",
+			fontName: "JetBrains",
+		},
+		{
+			name:     "Get max width for proportional font",
+			fontName: "Inter",
+		},
 	}
 
-	if font.Style.Weight != WeightBold {
-		t.Errorf("Font weight = %v, want %v", font.Style.Weight, WeightBold)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			font, err := GetFont(tt.fontName, nil)
+			if err != nil {
+				t.Fatalf("Failed to get font %s: %v", tt.fontName, err)
+			}
+
+			width, err := font.GetMaxWidth()
+			if err != nil {
+				t.Fatalf("GetMaxWidth() error = %v", err)
+			}
+
+			if width <= 0 {
+				t.Error("GetMaxWidth() returned zero or negative width")
+			}
+
+			// Call twice to test caching
+			width2, err := font.GetMaxWidth()
+			if err != nil {
+				t.Fatalf("Second GetMaxWidth() call error = %v", err)
+			}
+
+			if width != width2 {
+				t.Errorf("Cached width %v != original width %v", width2, width)
+			}
+		})
+	}
+}
+
+func TestGetMonoFace(t *testing.T) {
+	tests := []struct {
+		name      string
+		fontName  string
+		size      float64
+		cellWidth int
+	}{
+		{
+			name:      "Default cell width mono font",
+			fontName:  "JetBrains",
+			size:      12,
+			cellWidth: 0,
+		},
+		{
+			name:      "Custom cell width mono font",
+			fontName:  "JetBrains",
+			size:      12,
+			cellWidth: 20,
+		},
+		{
+			name:      "Default cell width proportional font",
+			fontName:  "Inter",
+			size:      12,
+			cellWidth: 0,
+		},
+		{
+			name:      "Custom cell width proportional font",
+			fontName:  "Inter",
+			size:      12,
+			cellWidth: 16,
+		},
 	}
 
-	if !font.Style.Italic {
-		t.Error("Font should be italic")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			font, err := GetFont(tt.fontName, nil)
+			if err != nil {
+				t.Fatalf("Failed to get font %s: %v", tt.fontName, err)
+			}
+
+			face, err := font.GetMonoFace(tt.size, tt.cellWidth)
+			if err != nil {
+				t.Fatalf("GetMonoFace() error = %v", err)
+			}
+			defer face.Close()
+
+			// Test that all ASCII printable characters have the same advance width
+			var lastAdvance fixed.Int26_6
+			for i := 32; i < 127; i++ {
+				advance, ok := face.Face.GlyphAdvance(rune(i))
+				if !ok {
+					continue
+				}
+
+				if lastAdvance != 0 && advance != lastAdvance {
+					t.Errorf("Glyph %c advance width %d != previous width %d", i, advance, lastAdvance)
+				}
+				lastAdvance = advance
+			}
+
+			// If custom cell width was specified, verify it's being used
+			if tt.cellWidth > 0 {
+				advance, ok := face.Face.GlyphAdvance('M')
+				if !ok {
+					t.Fatal("Failed to get advance width for 'M'")
+				}
+
+				expectedWidth := fixed.I(tt.cellWidth)
+				if advance != expectedWidth {
+					t.Errorf("Cell width = %v, want %v", advance, expectedWidth)
+				}
+			}
+		})
 	}
 }

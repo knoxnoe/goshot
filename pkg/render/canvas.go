@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/golang/freetype/truetype"
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
 	"github.com/watzon/goshot/pkg/fonts"
@@ -34,6 +33,7 @@ type CodeStyle struct {
 	UseANSI           bool
 	FontSize          float64
 	FontFamily        *fonts.Font
+	FontStyle         *fonts.FontStyle
 	LineHeight        float64
 	PaddingLeft       int
 	PaddingRight      int
@@ -47,13 +47,110 @@ type CodeStyle struct {
 // NewCodeStyle creates a new CodeStyle with default values
 func NewCodeStyle() *CodeStyle {
 	return &CodeStyle{
-		FontSize:      14,
+		FontSize: 14,
+		FontStyle: &fonts.FontStyle{
+			Weight:  fonts.WeightRegular,
+			Stretch: fonts.StretchNormal,
+		},
 		LineHeight:    1.5,
 		PaddingLeft:   10,
 		PaddingRight:  10,
 		PaddingTop:    10,
 		PaddingBottom: 10,
 	}
+}
+
+// WithLanguage sets the language for syntax highlighting
+func (s *CodeStyle) WithLanguage(lang string) *CodeStyle {
+	s.Language = lang
+	return s
+}
+
+// WithTheme sets the syntax highlighting theme
+func (s *CodeStyle) WithTheme(theme string) *CodeStyle {
+	s.Theme = theme
+	return s
+}
+
+// WithTabWidth sets the tab width in spaces
+func (s *CodeStyle) WithTabWidth(width int) *CodeStyle {
+	s.TabWidth = width
+	return s
+}
+
+// WithLineNumbers enables or disables line numbers
+func (s *CodeStyle) WithLineNumbers(show bool) *CodeStyle {
+	s.ShowLineNumbers = show
+	return s
+}
+
+// WithLineNumberRange sets the range of line numbers to display
+func (s *CodeStyle) WithLineNumberRange(start, end int) *CodeStyle {
+	s.LineNumberRange = LineRange{Start: start, End: end}
+	return s
+}
+
+// WithLineHighlight adds a line highlight range
+func (s *CodeStyle) WithLineHighlight(start, end int) *CodeStyle {
+	s.LineHighlightRanges = append(s.LineHighlightRanges, LineRange{Start: start, End: end})
+	return s
+}
+
+// WithPrompt sets the prompt settings
+func (s *CodeStyle) WithPrompt(show bool, command string) *CodeStyle {
+	s.ShowPrompt = show
+	s.PromptCommand = command
+	return s
+}
+
+// WithFont sets the font family and style
+func (s *CodeStyle) WithFont(fontName string, style *fonts.FontStyle) *CodeStyle {
+	font, err := fonts.GetFont(fontName, style)
+	if err == nil {
+		s.FontFamily = font
+		s.FontStyle = style
+	}
+	return s
+}
+
+// WithFontSize sets the font size in points
+func (s *CodeStyle) WithFontSize(size float64) *CodeStyle {
+	s.FontSize = size
+	return s
+}
+
+// WithLineHeight sets the line height as a multiplier of font size
+func (s *CodeStyle) WithLineHeight(height float64) *CodeStyle {
+	s.LineHeight = height
+	return s
+}
+
+// WithPadding sets all padding values
+func (s *CodeStyle) WithPadding(left, right, top, bottom int) *CodeStyle {
+	s.PaddingLeft = left
+	s.PaddingRight = right
+	s.PaddingTop = top
+	s.PaddingBottom = bottom
+	return s
+}
+
+// WithWidth sets the minimum and maximum width constraints
+func (s *CodeStyle) WithWidth(min, max int) *CodeStyle {
+	s.MinWidth = min
+	s.MaxWidth = max
+	return s
+}
+
+// WithLineNumberPadding sets the padding for line numbers
+func (s *CodeStyle) WithLineNumberPadding(padding int) *CodeStyle {
+	s.LineNumberPadding = padding
+	return s
+}
+
+// WithANSI enables or disables ANSI color processing
+func (s *CodeStyle) WithANSI(useANSI bool) *CodeStyle {
+	s.UseANSI = useANSI
+	return s
 }
 
 // Canvas represents a rendering canvas with all necessary configuration
@@ -84,16 +181,20 @@ func NewCanvas() *Canvas {
 			LineHighlightRanges: []LineRange{},
 			FontSize:            14,
 			FontFamily:          defaultFont,
-			LineHeight:          1.5,
-			PaddingLeft:         16,
-			PaddingRight:        16,
-			PaddingTop:          16,
-			PaddingBottom:       16,
-			MinWidth:            0,
-			MaxWidth:            0,
-			LineNumberPadding:   16,
-			ShowPrompt:          false,
-			PromptCommand:       "",
+			FontStyle: &fonts.FontStyle{
+				Weight:  fonts.WeightRegular,
+				Stretch: fonts.StretchNormal,
+			},
+			LineHeight:        1.5,
+			PaddingLeft:       16,
+			PaddingRight:      16,
+			PaddingTop:        16,
+			PaddingBottom:     16,
+			MinWidth:          0,
+			MaxWidth:          0,
+			LineNumberPadding: 16,
+			ShowPrompt:        false,
+			PromptCommand:     "",
 		},
 	}
 }
@@ -118,7 +219,7 @@ func (c *Canvas) SetCodeStyle(style *CodeStyle) *Canvas {
 
 // SetFont sets the font family to use for rendering
 func (c *Canvas) SetFont(fontName string) error {
-	font, err := fonts.GetFont(fontName, nil)
+	font, err := fonts.GetFont(fontName, c.codeStyle.FontStyle)
 	if err != nil {
 		return fmt.Errorf("error setting font: %v", err)
 	}
@@ -133,7 +234,34 @@ func (c *Canvas) SetFontWithStyle(fontName string, style *fonts.FontStyle) error
 		return fmt.Errorf("error setting font: %v", err)
 	}
 	c.codeStyle.FontFamily = font
+	c.codeStyle.FontStyle = style
 	return nil
+}
+
+// SetFontStyle sets just the font style without changing the font family
+func (c *Canvas) SetFontStyle(style *fonts.FontStyle) *Canvas {
+	c.codeStyle.FontStyle = style
+	if c.codeStyle.FontFamily != nil {
+		// Try to update the font with the new style
+		if font, err := fonts.GetFont(c.codeStyle.FontFamily.Name, style); err == nil {
+			c.codeStyle.FontFamily = font
+		}
+	}
+	return c
+}
+
+// GetFontFace creates a new font face with the current font and style settings
+func (c *Canvas) GetFontFace() (font.Face, error) {
+	if c.codeStyle.FontFamily == nil {
+		return nil, fmt.Errorf("no font family set")
+	}
+
+	face, err := c.codeStyle.FontFamily.GetFace(c.codeStyle.FontSize, c.codeStyle.FontStyle)
+	if err != nil {
+		return nil, fmt.Errorf("error creating font face: %v", err)
+	}
+
+	return face.Face, nil
 }
 
 // SetFontSize sets the font size in points
@@ -183,17 +311,12 @@ func (c *Canvas) RenderToImage(code string) (image.Image, error) {
 		c.codeStyle.FontFamily = fallback
 	}
 
-	ttf, err := c.codeStyle.FontFamily.ToTrueType()
+	face, err := c.GetFontFace()
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert font: %v", err)
+		return nil, fmt.Errorf("error getting font face: %v", err)
 	}
 
-	face := truetype.NewFace(ttf, &truetype.Options{
-		Size:    c.codeStyle.FontSize,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
-	renderConfig.SetFontFace(face, ttf, c.codeStyle.FontSize)
+	renderConfig.SetFontFace(face, c.codeStyle.FontSize)
 
 	if c.codeStyle.LineHeight > 0 {
 		renderConfig.SetLineHeight(c.codeStyle.LineHeight)

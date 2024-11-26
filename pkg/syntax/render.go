@@ -7,10 +7,8 @@ import (
 	"image/draw"
 	"strings"
 
-	"github.com/golang/freetype"
-	"github.com/golang/freetype/truetype"
+	"github.com/watzon/goshot/pkg/fonts"
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/math/fixed"
 )
 
@@ -23,7 +21,6 @@ type RenderConfig struct {
 	PaddingTop    int
 	PaddingBottom int
 	FontFace      font.Face
-	Font          *truetype.Font
 	Background    image.Image
 	TabWidth      int // Width of tab characters in spaces
 	MinWidth      int // Minimum width in pixels (0 means no minimum)
@@ -43,21 +40,51 @@ type RenderConfig struct {
 
 // DefaultConfig returns a default rendering configuration
 func DefaultConfig() *RenderConfig {
-	f, _ := truetype.Parse(gomono.TTF)
-	size := 14.0
-	face := truetype.NewFace(f, &truetype.Options{
-		Size: size,
-		DPI:  72,
+	defaultFont, err := fonts.GetFallback(fonts.FallbackMono)
+	if err != nil {
+		// If we can't get the default font, we'll create an empty config
+		// and let the user set the font face later
+		return &RenderConfig{
+			LineHeight:    1.5,
+			PaddingLeft:   10,
+			PaddingRight:  10,
+			PaddingTop:    10,
+			PaddingBottom: 10,
+			FontSize:      14.0,
+			TabWidth:      4,    // Default 4 spaces per tab
+			MinWidth:      200,  // Minimum width of 200px
+			MaxWidth:      1460, // Maximum width for 120 characters
+
+			// Line number defaults
+			ShowLineNumbers:   true,
+			LineNumberColor:   color.RGBA{R: 128, G: 128, B: 128, A: 255}, // Gray color
+			LineNumberPadding: 10,
+			LineNumberBg:      color.RGBA{R: 245, G: 245, B: 245, A: 255}, // Light gray background
+			StartLineNumber:   1,
+			EndLineNumber:     0,
+
+			// Line highlighting defaults
+			LineHighlightColor: color.RGBA{R: 68, G: 68, B: 68, A: 40}, // Semi-transparent dark color
+		}
+	}
+
+	face, err := defaultFont.GetFace(14.0, &fonts.FontStyle{
+		Weight:  fonts.WeightRegular,
+		Stretch: fonts.StretchNormal,
 	})
-	return &RenderConfig{
+	if err != nil {
+		// Handle error same as above
+		return &RenderConfig{}
+	}
+
+	config := &RenderConfig{
 		LineHeight:    1.5,
 		PaddingLeft:   10,
 		PaddingRight:  10,
 		PaddingTop:    10,
 		PaddingBottom: 10,
-		FontFace:      face,
-		Font:          f,
-		FontSize:      size,
+		FontFace:      face.Face,
+		FontSize:      14.0,
 		TabWidth:      4,    // Default 4 spaces per tab
 		MinWidth:      200,  // Minimum width of 200px
 		MaxWidth:      1460, // Maximum width for 120 characters
@@ -73,6 +100,8 @@ func DefaultConfig() *RenderConfig {
 		// Line highlighting defaults
 		LineHighlightColor: color.RGBA{R: 68, G: 68, B: 68, A: 40}, // Semi-transparent dark color
 	}
+
+	return config
 }
 
 // Getters and setters for RenderConfig
@@ -106,10 +135,9 @@ func (c *RenderConfig) SetPaddingBottom(padding int) *RenderConfig {
 	return c
 }
 
-// SetFontFace sets both the font face and underlying TrueType font
-func (c *RenderConfig) SetFontFace(face font.Face, f *truetype.Font, size float64) *RenderConfig {
+// SetFontFace sets the font face
+func (c *RenderConfig) SetFontFace(face font.Face, size float64) *RenderConfig {
 	c.FontFace = face
-	c.Font = f
 	c.FontSize = size
 	return c
 }
@@ -194,18 +222,6 @@ func (c *RenderConfig) SetLineHighlightColor(col color.Color) *RenderConfig {
 	return c
 }
 
-// WithFont is a convenience method to set the font face from TTF data
-func (c *RenderConfig) WithFont(ttfData []byte) (*RenderConfig, error) {
-	font, err := truetype.Parse(ttfData)
-	if err != nil {
-		return c, fmt.Errorf("failed to parse font: %v", err)
-	}
-	return c.SetFontFace(truetype.NewFace(font, &truetype.Options{
-		Size: 14,
-		DPI:  72,
-	}), font, 14.0), nil
-}
-
 // Clone creates a deep copy of the RenderConfig
 func (c *RenderConfig) Clone() *RenderConfig {
 	clone := *c // shallow copy
@@ -213,9 +229,6 @@ func (c *RenderConfig) Clone() *RenderConfig {
 	// Deep copy any pointer or interface fields
 	if c.FontFace != nil {
 		clone.FontFace = c.FontFace // Font is immutable, so pointer copy is safe
-	}
-	if c.Font != nil {
-		clone.Font = c.Font // Font is immutable, so pointer copy is safe
 	}
 	if c.Background != nil {
 		switch bg := c.Background.(type) {
@@ -404,6 +417,11 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 		}
 	}
 
+	// Calculate initial dimensions
+	metrics := config.FontFace.Metrics()
+	lineHeight := int(float64(metrics.Height.Round()) * config.LineHeight)
+	startX := config.PaddingLeft
+
 	// Wrap lines and calculate max width
 	for _, line := range lines {
 		var wrapped [][]Token
@@ -444,8 +462,6 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 	}
 
 	// Calculate total height
-	metrics := config.FontFace.Metrics()
-	lineHeight := int(float64(metrics.Height.Round()) * config.LineHeight)
 	totalHeight := (lineHeight * len(wrappedLines)) + (config.PaddingTop + config.PaddingBottom)
 
 	// Create the image
@@ -479,86 +495,74 @@ func (h *HighlightedCode) RenderToImage(config *RenderConfig) (image.Image, erro
 
 	// Draw line numbers if enabled
 	if config.ShowLineNumbers {
-		// Draw gutter background
-		gutterBg := h.GutterColor
-		if gutterBg == nil {
-			gutterBg = config.LineNumberBg
+		lineNumX := config.PaddingLeft + config.LineNumberPadding
+
+		// Calculate the maximum line number width
+		maxLineNum := config.EndLineNumber
+		if maxLineNum == 0 {
+			maxLineNum = config.StartLineNumber + len(wrappedLines) - 1
 		}
-		if gutterBg != nil {
-			for y := 0; y < totalHeight; y++ {
-				for x := 0; x < lineNumberOffset; x++ {
-					img.Set(x, y, gutterBg)
-				}
-			}
+		maxLineNumStr := fmt.Sprintf("%d", maxLineNum)
+		lineNumWidth := config.GetMonospaceWidth(len(maxLineNumStr))
+
+		// Draw line number background
+		if config.LineNumberBg != nil {
+			lineNumBgRect := image.Rect(0, 0, lineNumX+lineNumWidth+config.LineNumberPadding*2, img.Bounds().Max.Y)
+			draw.Draw(img, lineNumBgRect, &image.Uniform{config.LineNumberBg}, image.Point{}, draw.Src)
 		}
 
-		c := freetype.NewContext()
-		c.SetDPI(72)
-		c.SetFont(config.Font)
-		c.SetClip(img.Bounds())
-		c.SetDst(img)
-
-		// Use theme's line number color if available
-		lineNumColor := h.LineNumberColor
-		if lineNumColor == nil {
-			lineNumColor = config.LineNumberColor
-		}
-		c.SetSrc(image.NewUniform(lineNumColor))
-
+		// Draw line numbers
 		for i := range wrappedLines {
-			startLine := config.StartLineNumber
-			if startLine < 1 {
-				startLine = 1
-			}
-			lineNum := fmt.Sprintf("%d", startLine+i)
-			// Calculate position for right-aligned number
-			lineNumWidth := font.MeasureString(config.FontFace, lineNum).Round()
-			x := lineNumberOffset - config.LineNumberPadding - lineNumWidth
-			y := config.PaddingTop + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
-			pt := freetype.Pt(x, y)
-			c.DrawString(lineNum, pt)
-		}
-	}
+			if i < len(lines) {
+				lineNum := config.StartLineNumber + i
+				lineNumStr := fmt.Sprintf("%d", lineNum)
 
-	// Create context for drawing text
-	c := freetype.NewContext()
-	c.SetDPI(72)
-	c.SetFont(config.Font)
-	c.SetClip(img.Bounds())
-	c.SetDst(img)
+				// Calculate position for right-aligned line numbers
+				width := font.MeasureString(config.FontFace, lineNumStr).Round()
+				x := lineNumX + lineNumWidth - width
+
+				// Draw the line number
+				d := &font.Drawer{
+					Dst:  img,
+					Src:  &image.Uniform{config.LineNumberColor},
+					Face: config.FontFace,
+					Dot:  fixed.P(x, config.PaddingTop+(i+1)*lineHeight-(metrics.Descent.Round()*2)),
+				}
+				d.DrawString(lineNumStr)
+			}
+		}
+
+		// Adjust starting X position for code
+		startX = lineNumX + lineNumWidth + config.LineNumberPadding*2
+	}
 
 	// Draw each line
 	for i, line := range wrappedLines {
-		// Calculate baseline Y position
-		y := config.PaddingTop + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
-
-		// Draw code
-		x := config.PaddingLeft
-		if config.ShowLineNumbers {
-			x += lineNumberOffset
+		if i >= len(lines) {
+			continue
 		}
 
-		// Check if we're using a monospace font
-		isMono := isMonospace(config.FontFace)
+		x := startX
 
-		// Draw each token
+		y := config.PaddingTop + ((i + 1) * lineHeight) - (metrics.Descent.Round() * 2)
+
+		// Draw each token in the line
 		for _, token := range line {
-			c.SetSrc(image.NewUniform(token.Color))
-			pt := freetype.Pt(x, y)
-
-			if isMono {
-				// For monospace fonts, use fixed character spacing
-				charWidth := font.MeasureString(config.FontFace, "M").Round()
-				for _, ch := range token.Text {
-					c.DrawString(string(ch), pt)
-					pt.X += fixed.Int26_6(charWidth << 6)
-				}
-				x += charWidth * len([]rune(token.Text))
-			} else {
-				// For proportional fonts, use natural spacing
-				c.DrawString(token.Text, pt)
-				x += font.MeasureString(config.FontFace, token.Text).Round()
+			if token.Text == "" {
+				continue
 			}
+
+			d := &font.Drawer{
+				Dst:  img,
+				Src:  &image.Uniform{token.Color},
+				Face: config.FontFace,
+				Dot:  fixed.P(x, y),
+			}
+			d.DrawString(token.Text)
+
+			// Move x position forward by the width of the text
+			width := font.MeasureString(config.FontFace, token.Text).Round()
+			x += width
 		}
 	}
 

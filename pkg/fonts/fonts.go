@@ -3,6 +3,8 @@ package fonts
 import (
 	"embed"
 	"fmt"
+	"image"
+	"io"
 	"io/fs"
 	"log"
 	"os"
@@ -15,6 +17,7 @@ import (
 	"github.com/golang/freetype/truetype"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
+	"golang.org/x/image/math/fixed"
 )
 
 //go:embed embedded
@@ -22,19 +25,33 @@ var embeddedFonts embed.FS
 
 // fontCache caches loaded fonts to avoid repeated disk access
 var (
-	fontCache      = make(map[string][]*Font)
+	fontCache      = make(map[string]*Font)
 	fontCacheMu    sync.RWMutex
 	variantCache   = make(map[string]*Font)
 	variantCacheMu sync.RWMutex
 )
 
+// FontStretch represents the width/stretch of a font
+type FontStretch int
+
+const (
+	StretchUltraCondensed FontStretch = iota + 1
+	StretchExtraCondensed
+	StretchCondensed
+	StretchSemiCondensed
+	StretchNormal
+	StretchSemiExpanded
+	StretchExpanded
+	StretchExtraExpanded
+	StretchUltraExpanded
+)
+
 // FontStyle represents the style of a font
 type FontStyle struct {
-	Weight     FontWeight         // Font weight
-	Italic     bool               // Whether the font is italic
-	Condensed  bool               // Whether the font is condensed
-	Mono       bool               // Whether the font is monospaced
-	Variations map[string]float32 // Variable font variations
+	Weight  FontWeight  // Font weight
+	Stretch FontStretch // Font width/stretch
+	Italic  bool        // Whether the font is italic
+	Mono    bool        // Whether the font is monospaced
 }
 
 // FontWeight represents the weight of a font
@@ -65,13 +82,58 @@ const (
 	AxisLigatures   = "liga" // Ligatures
 )
 
-// Font represents a loaded font with its metadata
+// Font represents a loaded font
 type Font struct {
-	Name     string         // Name of the font family
-	Font     *opentype.Font // Parsed font
-	Style    FontStyle      // Style information for this font variant
-	FilePath string         // Path to the font file on disk
-	Filename string         // Name of the font file
+	Name        string         // Name of the font family
+	Font        *opentype.Font // Parsed font
+	FilePath    string         // Path to the font file on disk
+	Filename    string         // Name of the font file
+	IsMonospace bool           // Whether the font is monospaced
+	maxWidth    fixed.Int26_6  // Maximum glyph width (lazy loaded)
+	maxWidthMu  sync.Once      // Ensures maxWidth is computed only once
+}
+
+// Face represents a font face with specific style and size
+type Face struct {
+	Font  *Font
+	Style FontStyle
+	Size  float64
+	Face  font.Face
+}
+
+// GetFace returns a new Face with the specified style and size
+func (f *Font) GetFace(size float64, style *FontStyle) (*Face, error) {
+	if style == nil {
+		style = &FontStyle{
+			Weight:  WeightRegular,
+			Stretch: StretchNormal,
+		}
+	}
+
+	face, err := opentype.NewFace(f.Font, &opentype.FaceOptions{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create face: %v", err)
+	}
+
+	return &Face{
+		Font:  f,
+		Style: *style,
+		Size:  size,
+		Face:  face,
+	}, nil
+}
+
+// Close releases the resources used by the face
+func (f *Face) Close() {
+	if f.Face != nil {
+		if closer, ok := f.Face.(io.Closer); ok {
+			closer.Close()
+		}
+	}
 }
 
 // ToTrueType converts the opentype.Font to a truetype.Font
@@ -103,6 +165,202 @@ func (f *Font) ToTrueType() (*truetype.Font, error) {
 	}
 
 	return ttf, nil
+}
+
+func detectMonospace(ttf *truetype.Font) bool {
+	// Get the advance width of a reference character (e.g., 'M')
+	refIndex := ttf.Index('M')
+	if refIndex == 0 {
+		refIndex = ttf.Index('m')
+	}
+	if refIndex == 0 {
+		return false
+	}
+
+	refWidth := ttf.HMetric(2048, refIndex).AdvanceWidth // Use a standard units-per-em value
+
+	// Check a range of common characters
+	for _, r := range "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" {
+		idx := ttf.Index(r)
+		if idx == 0 {
+			continue
+		}
+
+		width := ttf.HMetric(2048, idx).AdvanceWidth
+		if width != refWidth {
+			return false
+		}
+	}
+
+	return true
+}
+
+// IsMono returns whether this font is monospaced
+func (f *Font) IsMono() bool {
+	return f.IsMonospace
+}
+
+// GetMaxWidth returns the maximum glyph width in the font
+func (f *Font) GetMaxWidth() (fixed.Int26_6, error) {
+	if f == nil || f.Font == nil {
+		return 0, fmt.Errorf("invalid font")
+	}
+
+	f.maxWidthMu.Do(func() {
+		ttf, err := f.ToTrueType()
+		if err != nil {
+			return
+		}
+
+		// Standard UPM (units per em) value
+		const upm = 2048
+
+		// Check common characters and some typically wide ones
+		chars := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789" +
+			"WMm@★→←↔⇒⇐⇔▶◀△▽□◇○◎●◐◑∇∆∩∪∫∮∼≒≠≡≦≧≨≩⊂⊃⊆⊇⊕⊖⊗⊘⊙⊚⊛⊜⊝⊞⊟"
+
+		var maxWidth fixed.Int26_6
+		for _, r := range chars {
+			idx := ttf.Index(r)
+			if idx == 0 {
+				continue
+			}
+
+			width := ttf.HMetric(upm, idx).AdvanceWidth
+			if width > fixed.Int26_6(maxWidth) {
+				maxWidth = fixed.Int26_6(width)
+			}
+		}
+
+		f.maxWidth = maxWidth
+	})
+
+	return f.maxWidth, nil
+}
+
+// GetMonoFace returns a font face that will render with fixed-width characters
+// size is the desired font size in points
+// cellWidth is the desired cell width in pixels (if 0, uses the font's natural maximum width)
+func (f *Font) GetMonoFace(size float64, cellWidth int) (*Face, error) {
+	if f == nil || f.Font == nil {
+		return nil, fmt.Errorf("invalid font")
+	}
+
+	// Create the base face first
+	baseOpts := &opentype.FaceOptions{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	}
+
+	baseFace, err := opentype.NewFace(f.Font, baseOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create base face: %v", err)
+	}
+
+	// If the font is already monospace and no specific cell width is requested,
+	// return the base face as is
+	if f.IsMonospace && cellWidth == 0 {
+		return &Face{
+			Font: f,
+			Style: FontStyle{
+				Weight:  WeightRegular,
+				Stretch: StretchNormal,
+			},
+			Size: size,
+			Face: baseFace,
+		}, nil
+	}
+
+	// Create a wrapper face that forces fixed width
+	maxWidth := cellWidth
+	if maxWidth == 0 {
+		// Use the font's natural maximum width
+		naturalMax, err := f.GetMaxWidth()
+		if err != nil {
+			return nil, err
+		}
+		maxWidth = int(naturalMax * fixed.Int26_6(size) / 2048)
+	}
+
+	monoFace := &monospaceFace{
+		Face:      baseFace,
+		cellWidth: fixed.I(maxWidth),
+	}
+
+	return &Face{
+		Font: f,
+		Style: FontStyle{
+			Weight:  WeightRegular,
+			Stretch: StretchNormal,
+		},
+		Size: size,
+		Face: monoFace,
+	}, nil
+}
+
+// monospaceFace wraps a font.Face to make it render with fixed-width characters
+type monospaceFace struct {
+	Face      font.Face
+	cellWidth fixed.Int26_6
+}
+
+func (m *monospaceFace) Close() error {
+	if closer, ok := m.Face.(io.Closer); ok {
+		return closer.Close()
+	}
+	return nil
+}
+
+func (m *monospaceFace) Glyph(dot fixed.Point26_6, r rune) (
+	dr image.Rectangle, mask image.Image, maskp image.Point, advance fixed.Int26_6, ok bool) {
+
+	// Get the original glyph
+	dr, mask, maskp, advance, ok = m.Face.Glyph(dot, r)
+	if !ok {
+		return
+	}
+
+	// Center the glyph in its cell
+	width := m.cellWidth
+	shift := (width - advance) / 2
+	dr = dr.Add(image.Point{X: fixed.Int26_6(shift).Round(), Y: 0})
+	maskp = maskp.Add(image.Point{X: fixed.Int26_6(shift).Round(), Y: 0})
+
+	// Return the fixed advance width
+	return dr, mask, maskp, width, true
+}
+
+func (m *monospaceFace) GlyphBounds(r rune) (bounds fixed.Rectangle26_6, advance fixed.Int26_6, ok bool) {
+	bounds, advance, ok = m.Face.GlyphBounds(r)
+	if !ok {
+		return
+	}
+
+	// Center the bounds in the cell
+	width := m.cellWidth
+	shift := (width - advance) / 2
+	bounds.Min.X += shift
+	bounds.Max.X += shift
+
+	return bounds, width, true
+}
+
+func (m *monospaceFace) GlyphAdvance(r rune) (advance fixed.Int26_6, ok bool) {
+	_, ok = m.Face.GlyphAdvance(r)
+	if !ok {
+		return 0, false
+	}
+	return m.cellWidth, true
+}
+
+func (m *monospaceFace) Kern(r0, r1 rune) fixed.Int26_6 {
+	// No kerning in monospace
+	return 0
+}
+
+func (m *monospaceFace) Metrics() font.Metrics {
+	return m.Face.Metrics()
 }
 
 // systemFontPaths contains the default system font directories for different operating systems
@@ -138,7 +396,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 
 	cacheKey := name
 	if style != nil {
-		cacheKey = fmt.Sprintf("%s-%d-%v-%v-%v", name, style.Weight, style.Italic, style.Condensed, style.Mono)
+		cacheKey = fmt.Sprintf("%s-%d-%d-%v-%v", name, style.Weight, style.Stretch, style.Italic, style.Mono)
 	}
 
 	// Check variant cache first
@@ -160,7 +418,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 	if style == nil {
 		// Find regular variant
 		for _, font := range variants {
-			if font.Style.Weight == WeightRegular && !font.Style.Italic {
+			if font.Font != nil {
 				selected = font
 				break
 			}
@@ -172,7 +430,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 		// Find best matching style
 		var bestScore int
 		for _, font := range variants {
-			score := matchStyleScore(font.Style, *style)
+			score := matchStyleScore(*style, FontStyle{})
 			if score > bestScore {
 				selected = font
 				bestScore = score
@@ -203,37 +461,42 @@ const (
 func GetFallback(variant FallbackVariant) (*Font, error) {
 	var filename string
 	var fontName string
-	var variations map[string]float32
 
 	switch variant {
 	case FallbackMono:
 		filename = "JetBrainsMono-Regular.ttf"
 		fontName = "JetBrainsMono"
-	default: // FallbackSans
+	case FallbackSans:
 		filename = "Inter-Regular.ttf"
 		fontName = "Inter"
+	default:
+		return nil, fmt.Errorf("invalid fallback variant")
 	}
 
 	data, err := embeddedFonts.ReadFile("embedded/" + filename)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read %s: %v", fontName, err)
+		return nil, fmt.Errorf("failed to read fallback font: %v", err)
 	}
 
 	font, err := opentype.Parse(data)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse %s: %v", fontName, err)
+		return nil, fmt.Errorf("failed to parse fallback font: %v", err)
 	}
 
-	return &Font{
-		Name: fontName,
-		Font: font,
-		Style: FontStyle{
-			Weight:     WeightRegular,
-			Mono:       variant == FallbackMono,
-			Variations: variations,
-		},
-		Filename: filename,
-	}, nil
+	// Convert to truetype to check if monospace
+	ttf, err := truetype.Parse(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse as truetype: %v", err)
+	}
+
+	f := &Font{
+		Name:        fontName,
+		Font:        font,
+		Filename:    filename,
+		IsMonospace: detectMonospace(ttf),
+	}
+
+	return f, nil
 }
 
 // IsFontAvailable is a super fast check to see if the given font is available on the system
@@ -251,11 +514,12 @@ func matchStyleScore(a, b FontStyle) int {
 	weightDiff := abs(int(a.Weight) - int(b.Weight))
 	score += 100 - (weightDiff * 10)
 
+	// Stretch match (closer stretches = higher score)
+	stretchDiff := abs(int(a.Stretch) - int(b.Stretch))
+	score += 100 - (stretchDiff * 10)
+
 	// Exact style matches
 	if a.Italic == b.Italic {
-		score += 50
-	}
-	if a.Condensed == b.Condensed {
 		score += 50
 	}
 	if a.Mono == b.Mono {
@@ -276,16 +540,16 @@ func GetFontVariants(name string) ([]*Font, error) {
 	fontCacheMu.RLock()
 	if cached, ok := fontCache[name]; ok {
 		fontCacheMu.RUnlock()
-		if len(cached) == 0 {
+		if cached == nil {
 			return nil, fmt.Errorf("font %s not found", name)
 		}
-		return cached, nil
+		return []*Font{cached}, nil
 	}
 	fontCacheMu.RUnlock()
 
 	var variants []*Font
 
-	// Search embedded fonts first
+	// First check embedded fonts
 	entries, err := embeddedFonts.ReadDir("embedded")
 	if err == nil {
 		for _, entry := range entries {
@@ -294,8 +558,8 @@ func GetFontVariants(name string) ([]*Font, error) {
 			}
 
 			cleanName := cleanFontName(entry.Name())
-			if strings.EqualFold(cleanName, name) {
-				data, err := embeddedFonts.ReadFile(filepath.Join("embedded", entry.Name()))
+			if cleanName == name {
+				data, err := embeddedFonts.ReadFile("embedded/" + entry.Name())
 				if err != nil {
 					continue
 				}
@@ -305,12 +569,17 @@ func GetFontVariants(name string) ([]*Font, error) {
 					continue
 				}
 
-				fontStyle := extractFontStyle(entry.Name())
+				// Convert to truetype to check if monospace
+				ttf, err := truetype.Parse(data)
+				if err != nil {
+					continue
+				}
+
 				variant := &Font{
-					Name:     cleanName,
-					Font:     font,
-					Style:    fontStyle,
-					Filename: entry.Name(),
+					Name:        cleanName,
+					Font:        font,
+					Filename:    entry.Name(),
+					IsMonospace: detectMonospace(ttf),
 				}
 				variants = append(variants, variant)
 			}
@@ -349,7 +618,7 @@ func GetFontVariants(name string) ([]*Font, error) {
 			}
 
 			cleanName := cleanFontName(info.Name())
-			if strings.EqualFold(cleanName, name) {
+			if cleanName == name {
 				data, err := os.ReadFile(path)
 				if err != nil {
 					return nil
@@ -360,12 +629,17 @@ func GetFontVariants(name string) ([]*Font, error) {
 					return nil
 				}
 
-				fontStyle := extractFontStyle(info.Name())
+				// Convert to truetype to check if monospace
+				ttf, err := truetype.Parse(data)
+				if err != nil {
+					return nil
+				}
+
 				variant := &Font{
-					Name:     cleanName,
-					Font:     font,
-					Style:    fontStyle,
-					FilePath: path,
+					Name:        cleanName,
+					Font:        font,
+					FilePath:    path,
+					IsMonospace: detectMonospace(ttf),
 				}
 				variants = append(variants, variant)
 			}
@@ -378,14 +652,14 @@ func GetFontVariants(name string) ([]*Font, error) {
 		}
 	}
 
-	// Cache the results
-	fontCacheMu.Lock()
-	fontCache[name] = variants
-	fontCacheMu.Unlock()
-
 	if len(variants) == 0 {
 		return nil, fmt.Errorf("font %s not found", name)
 	}
+
+	// Cache the results
+	fontCacheMu.Lock()
+	fontCache[name] = variants[0]
+	fontCacheMu.Unlock()
 
 	return variants, nil
 }
@@ -423,9 +697,33 @@ func extractFontStyle(filename string) FontStyle {
 		}
 	}
 
+	// Check for stretch indicators
+	switch {
+	case strings.Contains(nameLower, "ultracondensed"):
+		style.Stretch = StretchUltraCondensed
+	case strings.Contains(nameLower, "extracondensed"):
+		style.Stretch = StretchExtraCondensed
+	case strings.Contains(nameLower, "condensed"):
+		style.Stretch = StretchCondensed
+	case strings.Contains(nameLower, "semicondensed"):
+		style.Stretch = StretchSemiCondensed
+	case strings.Contains(nameLower, "expanded"):
+		if strings.Contains(nameLower, "ultraexpanded") {
+			style.Stretch = StretchUltraExpanded
+		} else if strings.Contains(nameLower, "extraexpanded") {
+			style.Stretch = StretchExtraExpanded
+		} else {
+			style.Stretch = StretchExpanded
+		}
+	case strings.Contains(nameLower, "semiexpanded"):
+		style.Stretch = StretchSemiExpanded
+	default:
+		// Only set regular stretch if we don't find any other stretch indicators
+		style.Stretch = StretchNormal
+	}
+
 	// Check for style indicators
 	style.Italic = strings.Contains(nameLower, "italic") || strings.Contains(nameLower, "oblique")
-	style.Condensed = strings.Contains(nameLower, "condensed") || strings.Contains(nameLower, "narrow")
 	style.Mono = strings.Contains(nameLower, "mono") || strings.Contains(nameLower, "console")
 
 	return style
@@ -529,19 +827,25 @@ func cleanFontName(name string) string {
 		"Heavy",
 	}
 
+	// Common font stretches
+	stretches := []string{
+		"UltraCondensed",
+		"ExtraCondensed",
+		"Condensed",
+		"SemiCondensed",
+		"Normal",
+		"SemiExpanded",
+		"Expanded",
+		"ExtraExpanded",
+		"UltraExpanded",
+	}
+
 	// Common font styles
 	styles := []string{
 		"Italic",
 		"Oblique",
-		"Condensed",
-		"Narrow",
-		"Wide",
 		"Mono",
-		"Text",
-		"Display",
-		"Book",
-		"Normal",
-		"UI",
+		"Console",
 	}
 
 	// Common separators
@@ -568,6 +872,9 @@ func cleanFontName(name string) string {
 
 	// Add weight-only patterns
 	patterns = append(patterns, weights...)
+
+	// Add stretch-only patterns
+	patterns = append(patterns, stretches...)
 
 	// Add style-only patterns
 	patterns = append(patterns, styles...)
@@ -669,42 +976,9 @@ func (m *multiFS) Open(name string) (fs.File, error) {
 	return nil, os.ErrNotExist
 }
 
-// GetFontFace returns a font.Face with the specified size
-func (f *Font) GetFontFace(size float64) (font.Face, error) {
-	// TODO: The current x/image/font/opentype package does not support variable font features.
-	// We need to implement our own font rendering system that can properly handle OpenType
-	// variable fonts and their variations (weight, width, slant, etc). This would involve:
-	// 1. Parsing the OpenType font tables (fvar, gvar, etc.)
-	// 2. Implementing variation interpolation
-	// 3. Creating a custom font.Face implementation
-	if f == nil || f.Font == nil {
-		fallback, err := GetFallback(FallbackMono)
-		if err != nil {
-			return nil, err
-		}
-		return fallback.GetFontFace(size)
-	}
-
-	// Convert to TrueType for better hinting support
-	ttf, err := f.ToTrueType()
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert to TrueType: %v", err)
-	}
-
-	// Create face options with hinting enabled
-	opts := &truetype.Options{
-		Size:    size,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	}
-
-	face := truetype.NewFace(ttf, opts)
-	return face, nil
-}
-
 // ClearCache clears the font cache
 func ClearCache() {
 	fontCacheMu.Lock()
-	fontCache = make(map[string][]*Font)
+	fontCache = make(map[string]*Font)
 	fontCacheMu.Unlock()
 }

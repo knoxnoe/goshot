@@ -121,40 +121,23 @@ func main() {
 		SetScaleMode(background.ImageScaleTile).
 		SetBlurRadius(0.5)
 
-	codeStyle := &render.CodeStyle{
-		Language:        "go",
-		Theme:           "dracula",
-		TabWidth:        4,
-		ShowLineNumbers: true,
-		LineNumberRange: render.LineRange{
-			Start: 1,
-			End:   17,
-		},
-		LineHighlightRanges: []render.LineRange{
-			{
-				Start: 8,
-				End:   10,
-			},
-		},
-		FontSize: 16,
-		FontFamily: &fonts.Font{
-			Name: "JetBrains Mono",
-			Style: fonts.FontStyle{
-				Weight:    fonts.WeightRegular,
-				Italic:    false,
-				Condensed: false,
-				Mono:      true,
-			},
-		},
-		LineHeight:        1.5,
-		PaddingLeft:       10,
-		PaddingRight:      30,
-		PaddingTop:        30,
-		PaddingBottom:     30,
-		MinWidth:          400,
-		MaxWidth:          800,
-		LineNumberPadding: 20,
-	}
+	// Set up the code style
+	codeStyle := render.NewCodeStyle().
+		WithLanguage("go").
+		WithTheme("dracula").
+		WithTabWidth(4).
+		WithLineNumbers(true).
+		WithLineNumberRange(1, 17).
+		WithLineHighlight(8, 10).
+		WithFont("JetBrains Mono", &fonts.FontStyle{
+			Weight:  fonts.WeightRegular,
+			Stretch: fonts.StretchNormal,
+		}).
+		WithFontSize(16).
+		WithLineHeight(1.5).
+		WithPadding(10, 30, 30, 30).
+		WithWidth(400, 800).
+		WithLineNumberPadding(20)
 
 	chromes := []chrome.Chrome{macOsChrome, windows11Chrome, macOsChromeDark, windows11ChromeDark}
 	backgrounds := []background.Background{

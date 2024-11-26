@@ -66,16 +66,20 @@ func DrawTitleText(dc *gg.Context, title string, width, titleBarHeight int, text
 		}
 	}
 
-	face, err := font.GetFontFace(fontSize)
+	face, err := font.GetFace(fontSize, &fonts.FontStyle{
+		Weight:  fonts.WeightBold,
+		Stretch: fonts.StretchNormal,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create font face: %v", err)
 	}
+	defer face.Close()
 
-	dc.SetFontFace(face)
+	dc.SetFontFace(face.Face)
 	dc.SetColor(textColor)
 
 	// Adjust Y position to account for font metrics and achieve true vertical centering
-	metrics := face.Metrics()
+	metrics := face.Face.Metrics()
 	height := float64(metrics.Height.Round())
 	// Move up by a quarter of the total height to achieve true vertical centering
 	y = y - height/4
