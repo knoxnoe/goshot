@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
+	"github.com/watzon/goshot/pkg/content"
 	"golang.org/x/image/font"
 )
 
@@ -112,14 +113,14 @@ func wrapTokens(tokens []Token, face font.Face, maxWidth, startX int) [][]Token 
 		// Check if this token would exceed max width
 		if currentWidth+tokenWidth > maxWidth {
 			if len(currentLine) > 0 {
-				// Before starting a new line, check if splitting the current token would 
+				// Before starting a new line, check if splitting the current token would
 				// allow the next token to fit on the same line
 				if i+1 < len(tokens) {
 					nextToken := tokens[i+1]
 					nextTokenWidth := font.MeasureString(face, nextToken.Text).Round()
-					
+
 					// If the next token starts with a space and would fit after splitting
-					if strings.HasPrefix(nextToken.Text, " ") && 
+					if strings.HasPrefix(nextToken.Text, " ") &&
 						currentWidth+nextTokenWidth <= maxWidth {
 						// Keep the current line and continue to next token
 						currentLine = append(currentLine, token)
@@ -127,7 +128,7 @@ func wrapTokens(tokens []Token, face font.Face, maxWidth, startX int) [][]Token 
 						continue
 					}
 				}
-				
+
 				// Otherwise start a new line
 				result = append(result, currentLine)
 				currentLine = nil
@@ -193,7 +194,7 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 	for len(text) > 0 {
 		// Try to fit as many complete words as possible
 		numWords, endPos := findMaxFittingWords(text, face, 0, maxWidth)
-		
+
 		if numWords > 0 {
 			// We can fit at least one word
 			result = append(result, Token{
@@ -212,7 +213,7 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 			firstSpace = len(text)
 		}
 		word := text[:firstSpace]
-		
+
 		// Binary search for the maximum characters that fit
 		low, high := 1, len(word)
 		for low < high {
@@ -224,7 +225,7 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 				high = mid - 1
 			}
 		}
-		
+
 		if low > 0 {
 			// Only split if we can fit at least one character
 			result = append(result, Token{
@@ -249,7 +250,7 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 	return result
 }
 
-func validateLineRanges(lines []Line, ranges []LineRange) error {
+func validateLineRanges(lines []Line, ranges []content.LineRange) error {
 	if len(ranges) > 0 {
 		for _, lr := range ranges {
 			if lr.Start > len(lines) {
@@ -264,11 +265,11 @@ func validateLineRanges(lines []Line, ranges []LineRange) error {
 	return nil
 }
 
-func validateLineHighlightRanges(lines []Line, lineRanges []LineRange, highlightRanges []LineRange) error {
+func validateLineHighlightRanges(lines []Line, lineRanges []content.LineRange, highlightRanges []content.LineRange) error {
 	if len(highlightRanges) > 0 {
 		lr := lineRanges
 		if len(lr) == 0 {
-			lr = append(lr, LineRange{Start: 1, End: len(lines)})
+			lr = append(lr, content.LineRange{Start: 1, End: len(lines)})
 		}
 
 		for _, lhr := range highlightRanges {

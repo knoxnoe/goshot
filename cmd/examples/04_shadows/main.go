@@ -3,15 +3,17 @@ package main
 import (
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/render"
 )
 
 func main() {
 	// Simple code example
-	code := `func hello() string {
+	input := `func hello() string {
     return "Hello, World!"
 }`
 
@@ -33,20 +35,16 @@ func main() {
 						WithColor(color.RGBA{R: 0, G: 0, B: 0, A: 120}), // Slightly opaque
 				),
 		).
-		WithCodeStyle(&render.CodeStyle{
-			Language:        "go",
-			Theme:           "dracula",
-			TabWidth:        4,
-			ShowLineNumbers: true,
-		})
+		WithContent(code.DefaultRenderer(input).
+			WithLanguage("go").
+			WithTheme("dracula").
+			WithTabWidth(4).
+			WithLineNumbers(true),
+		)
 
-	// Render to file
-	img, err := canvas.RenderToImage(code)
+	os.MkdirAll("example_output", 0755)
+	err := canvas.SaveAsPNG("example_output/shadow.png")
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := render.SaveAsPNG(img, "shadow.png"); err != nil {
 		log.Fatal(err)
 	}
 }

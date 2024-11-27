@@ -11,8 +11,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/fonts"
-	"github.com/watzon/goshot/pkg/syntax"
 	"github.com/watzon/goshot/pkg/version"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -83,6 +83,8 @@ type Config struct {
 	Theme              string
 	Language           string
 	Font               string
+	FontSize           float64
+	LineHeight         float64
 	BackgroundColor    string
 	BackgroundImage    string
 	BackgroundImageFit string
@@ -91,6 +93,8 @@ type Config struct {
 	NoWindowControls   bool
 	WindowTitle        string
 	WindowCornerRadius float64
+	LineRanges         []string
+	HighlightLines     []string
 
 	// Gradient options
 	GradientType      string
@@ -101,16 +105,19 @@ type Config struct {
 	GradientIntensity float64
 
 	// Padding and layout
-	TabWidth      int
-	StartLine     int
-	EndLine       int
-	LinePadding   int
-	PadHoriz      int
-	PadVert       int
-	CodePadTop    int
-	CodePadBottom int
-	CodePadLeft   int
-	CodePadRight  int
+	TabWidth          int
+	StartLine         int
+	EndLine           int
+	LinePadding       int
+	PadHoriz          int
+	PadVert           int
+	CodePadTop        int
+	CodePadBottom     int
+	CodePadLeft       int
+	CodePadRight      int
+	LineNumberPadding int
+	MinWidth          int
+	MaxWidth          int
 
 	// Shadow options
 	ShadowBlurRadius float64
@@ -118,9 +125,6 @@ type Config struct {
 	ShadowSpread     float64
 	ShadowOffsetX    float64
 	ShadowOffsetY    float64
-
-	// Highlighting
-	HighlightLines string
 }
 
 func main() {
@@ -183,7 +187,7 @@ func main() {
 
 	execCommand := &cobra.Command{
 		Use:   "exec [command]",
-		Short: styles.subtitle.Render("Execute a command and create a screenshot of its output"),
+		Short: "Execute a command and create a screenshot of its output",
 		Long:  styles.info.Render("Execute a command and create a beautiful screenshot of its output"),
 		Args:  cobra.MinimumNArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -212,7 +216,7 @@ func main() {
 		Use:   "themes",
 		Short: "List available themes",
 		Run: func(cmd *cobra.Command, args []string) {
-			themes := syntax.GetAvailableStyles()
+			themes := code.GetAvailableStyles()
 			sort.Strings(themes)
 
 			fmt.Println(styles.subtitle.Render("Available Themes:"))
@@ -242,7 +246,7 @@ func main() {
 		Use:   "languages",
 		Short: "List available languages",
 		Run: func(cmd *cobra.Command, args []string) {
-			languages := syntax.GetAvailableLanguages(false)
+			languages := code.GetAvailableLanguages(false)
 			sort.Strings(languages)
 
 			fmt.Println(styles.subtitle.Render("Available Languages:"))
@@ -312,7 +316,9 @@ func main() {
 	appearanceFlagSet.BoolVarP(&config.DarkMode, "dark-mode", "d", false, "Use dark mode")
 	appearanceFlagSet.StringVarP(&config.Theme, "theme", "t", "dracula", "Syntax highlight theme (name or .tmTheme file)")
 	appearanceFlagSet.StringVarP(&config.Language, "language", "l", "", "Language for syntax highlighting (e.g., 'Rust' or 'rs')")
-	appearanceFlagSet.StringVarP(&config.Font, "font", "f", "", "Fallback font list (e.g., 'Hack; SimSun=31')")
+	appearanceFlagSet.StringVarP(&config.Font, "font", "f", "JetBrainsMono", "Fallback font list (e.g., 'Hack; SimSun=31')")
+	appearanceFlagSet.Float64Var(&config.FontSize, "font-size", 14.0, "Font size")
+	appearanceFlagSet.Float64Var(&config.LineHeight, "line-height", 1.0, "Line height")
 	appearanceFlagSet.StringVarP(&config.BackgroundColor, "background", "b", "#aaaaff", "Background color")
 	appearanceFlagSet.StringVar(&config.BackgroundImage, "background-image", "", "Background image path")
 	appearanceFlagSet.StringVar(&config.BackgroundImageFit, "background-image-fit", "cover", "Background image fit (contain, cover, fill, stretch, tile)")
@@ -321,7 +327,8 @@ func main() {
 	appearanceFlagSet.BoolVar(&config.NoWindowControls, "no-window-controls", false, "Hide window controls")
 	appearanceFlagSet.StringVar(&config.WindowTitle, "window-title", "", "Window title")
 	appearanceFlagSet.Float64Var(&config.WindowCornerRadius, "window-corner-radius", 10, "Corner radius of the window")
-	appearanceFlagSet.StringVar(&config.HighlightLines, "highlight-lines", "", "Lines to highlight (e.g., '1-3;4')")
+	appearanceFlagSet.StringArrayVarP(&config.LineRanges, "line-range", "", []string{}, "Line ranges to render (e.g., '--line-range 1-3')")
+	appearanceFlagSet.StringArrayVarP(&config.HighlightLines, "highlight-lines", "", []string{}, "Lines to highlight (e.g., '--highlight-lines 2-5')")
 	rootCmd.Flags().AddFlagSet(appearanceFlagSet)
 	execCommand.Flags().AddFlagSet(appearanceFlagSet)
 	rfg[appearanceFlagSet] = "appearance"
@@ -337,6 +344,9 @@ func main() {
 	layoutFlagSet.IntVar(&config.CodePadBottom, "code-pad-bottom", 10, "Code bottom padding")
 	layoutFlagSet.IntVar(&config.CodePadLeft, "code-pad-left", 10, "Code left padding")
 	layoutFlagSet.IntVar(&config.CodePadRight, "code-pad-right", 10, "Code right padding")
+	layoutFlagSet.IntVar(&config.LineNumberPadding, "line-number-pad", 10, "Line number padding")
+	layoutFlagSet.IntVar(&config.MinWidth, "min-width", 0, "Minimum width")
+	layoutFlagSet.IntVar(&config.MaxWidth, "max-width", 0, "Maximum width")
 	rootCmd.Flags().AddFlagSet(layoutFlagSet)
 	execCommand.Flags().AddFlagSet(layoutFlagSet)
 	rfg[layoutFlagSet] = "layout"

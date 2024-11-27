@@ -8,6 +8,7 @@ import (
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/render"
 )
 
@@ -24,7 +25,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	code := `// Example of a concurrent worker pool
+	input := `// Example of a concurrent worker pool
 func worker(id int, jobs <-chan int, results chan<- int) {
     for j := range jobs {
         fmt.Printf("worker %d processing job %d\n", id, j)
@@ -48,19 +49,17 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 				chrome.WithTitle("Image Background Example"),
 			)).
 		WithBackground(bg).
-		WithCodeStyle(&render.CodeStyle{
-			Language:        "go",
-			Theme:           "dracula",
-			TabWidth:        4,
-			ShowLineNumbers: true,
-		})
+		WithContent(
+			code.DefaultRenderer(input).
+				WithLanguage("go").
+				WithTheme("dracula").
+				WithTabWidth(4).
+				WithLineNumbers(true),
+		)
 
-	img, err = canvas.RenderToImage(code)
+	os.MkdirAll("example_output", 0755)
+	err = canvas.SaveAsPNG("example_output/image_background.png")
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := render.SaveAsPNG(img, "image_background.png"); err != nil {
 		log.Fatal(err)
 	}
 }

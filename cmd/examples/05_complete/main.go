@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/render"
 )
 
 func main() {
 	// Simple code example
-	code := `package main
+	input := `package main
 
 import (
 	"fmt"
@@ -122,21 +124,21 @@ func main() {
 		WithBlurRadius(0.5)
 
 	// Set up the code style
-	codeStyle := render.NewCodeStyle().
+	content := code.DefaultRenderer(input).
 		WithLanguage("go").
 		WithTheme("dracula").
 		WithTabWidth(4).
 		WithLineNumbers(true).
-		WithLineNumberRange(1, 17).
-		WithLineHighlight(8, 10).
-		WithFont("JetBrains Mono", &fonts.FontStyle{
+		WithLineRange(1, 17).
+		WithLineHighlightRange(8, 10).
+		WithFontName("JetBrainsMono", &fonts.FontStyle{
 			Weight:  fonts.WeightRegular,
 			Stretch: fonts.StretchNormal,
 		}).
 		WithFontSize(16).
-		WithLineHeight(1.5).
+		WithLineHeight(1.2).
 		WithPadding(10, 30, 30, 30).
-		WithWidth(400, 800).
+		WithMaxWidth(800).
 		WithLineNumberPadding(20)
 
 	chromes := []chrome.Chrome{macOsChrome, windows11Chrome, macOsChromeDark, windows11ChromeDark}
@@ -152,17 +154,15 @@ func main() {
 		imageBackground,
 	}
 
+	os.MkdirAll("example_output", 0755)
 	for i, chrome := range chromes {
 		for j, background := range backgrounds {
 			canvas := render.NewCanvas().
 				WithChrome(chrome).
 				WithBackground(background).
-				WithCodeStyle(codeStyle)
-			img, err := canvas.RenderToImage(code)
+				WithContent(content)
+			err := canvas.SaveAsPNG(fmt.Sprintf("example_output/output_%d_%d.png", i, j))
 			if err != nil {
-				log.Fatal(err)
-			}
-			if err := render.SaveAsPNG(img, fmt.Sprintf("output_%d_%d.png", i, j)); err != nil {
 				log.Fatal(err)
 			}
 		}

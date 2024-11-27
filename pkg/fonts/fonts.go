@@ -405,6 +405,9 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 		return nil, fmt.Errorf("font name cannot be empty")
 	}
 
+	// Normalize font name
+	name = cleanFontName(name)
+
 	cacheKey := name
 	if style != nil {
 		cacheKey = fmt.Sprintf("%s-%d-%d-%v-%v", name, style.Weight, style.Stretch, style.Italic, style.Mono)
@@ -448,6 +451,8 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 			}
 		}
 	}
+
+	fmt.Printf("Selected font: %v\n", selected)
 
 	if selected != nil {
 		// Cache the result

@@ -8,33 +8,29 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/watzon/goshot/pkg/content"
 	"github.com/watzon/goshot/pkg/fonts"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
 
-type LineRange struct {
-	Start int
-	End   int
-}
-
 type CodeStyle struct {
-	Theme               string      // The chroma syntax theme to use
-	Language            string      // The language to highlight
-	Font                *fonts.Font // The font to use
-	FontSize            float64     // The font size in points
-	LineHeight          float64     // The line height multiplier
-	PaddingLeft         int         // Padding between the code and the left edge
-	PaddingRight        int         // Padding between the code and the right edge
-	PaddingTop          int         // Padding between the code and the top edge
-	PaddingBottom       int         // Padding between the code and the bottom edge
-	LineNumberPadding   int         // Padding between line numbers and code
-	TabWidth            int         // Width of tab characters in spaces
-	MinWidth            int         // Minimum width in pixels (0 means no minimum)
-	MaxWidth            int         // Maximum width in pixels (0 means no limit)
-	ShowLineNumbers     bool        // Whether to show line numbers
-	LineRanges          []LineRange // Ranges of lines to render
-	LineHighlightRanges []LineRange // Ranges of lines to highlight
+	Theme               string              // The chroma syntax theme to use
+	Language            string              // The language to highlight
+	Font                *fonts.Font         // The font to use
+	FontSize            float64             // The font size in points
+	LineHeight          float64             // The line height multiplier
+	PaddingLeft         int                 // Padding between the code and the left edge
+	PaddingRight        int                 // Padding between the code and the right edge
+	PaddingTop          int                 // Padding between the code and the top edge
+	PaddingBottom       int                 // Padding between the code and the bottom edge
+	LineNumberPadding   int                 // Padding between line numbers and code
+	TabWidth            int                 // Width of tab characters in spaces
+	MinWidth            int                 // Minimum width in pixels (0 means no minimum)
+	MaxWidth            int                 // Maximum width in pixels (0 means no limit)
+	ShowLineNumbers     bool                // Whether to show line numbers
+	LineRanges          []content.LineRange // Ranges of lines to render
+	LineHighlightRanges []content.LineRange // Ranges of lines to highlight
 }
 
 type CodeRenderer struct {
@@ -42,20 +38,20 @@ type CodeRenderer struct {
 	Style *CodeStyle
 }
 
-func NewCodeRenderer(input string, style *CodeStyle) *CodeRenderer {
+func NewRenderer(input string, style *CodeStyle) *CodeRenderer {
 	return &CodeRenderer{
 		Code:  input,
 		Style: style,
 	}
 }
 
-func DefaultCodeRenderer(input string) *CodeRenderer {
+func DefaultRenderer(input string) *CodeRenderer {
 	font, err := fonts.GetFallback(fonts.FallbackMono)
 	if err != nil {
 		panic(err)
 	}
 
-	return NewCodeRenderer(input, &CodeStyle{
+	return NewRenderer(input, &CodeStyle{
 		Theme:             "monokai",
 		Language:          "go",
 		Font:              font,
@@ -67,8 +63,8 @@ func DefaultCodeRenderer(input string) *CodeRenderer {
 		PaddingBottom:     10,
 		LineNumberPadding: 10,
 		TabWidth:          4,
-		MinWidth:          0,
-		MaxWidth:          0,
+		MinWidth:          300,
+		MaxWidth:          900,
 		ShowLineNumbers:   true,
 	})
 }
@@ -121,7 +117,7 @@ func (r *CodeRenderer) WithMaxWidth(width int) *CodeRenderer {
 	return r
 }
 
-func (r *CodeRenderer) WithShowLineNumbers(show bool) *CodeRenderer {
+func (r *CodeRenderer) WithLineNumbers(show bool) *CodeRenderer {
 	r.Style.ShowLineNumbers = show
 	return r
 }
@@ -131,18 +127,26 @@ func (r *CodeRenderer) WithFont(font *fonts.Font) *CodeRenderer {
 	return r
 }
 
+func (r *CodeRenderer) WithFontName(name string, style *fonts.FontStyle) *CodeRenderer {
+	font, err := fonts.GetFont(name, style)
+	if err != nil {
+		panic(err)
+	}
+	return r.WithFont(font)
+}
+
 func (r *CodeRenderer) WithStyle(style *CodeStyle) *CodeRenderer {
 	r.Style = style
 	return r
 }
 
 func (r *CodeRenderer) WithLineRange(start, end int) *CodeRenderer {
-	r.Style.LineRanges = append(r.Style.LineRanges, LineRange{Start: start, End: end})
+	r.Style.LineRanges = append(r.Style.LineRanges, content.LineRange{Start: start, End: end})
 	return r
 }
 
 func (r *CodeRenderer) WithLineHighlightRange(start, end int) *CodeRenderer {
-	r.Style.LineHighlightRanges = append(r.Style.LineHighlightRanges, LineRange{Start: start, End: end})
+	r.Style.LineHighlightRanges = append(r.Style.LineHighlightRanges, content.LineRange{Start: start, End: end})
 	return r
 }
 
@@ -258,7 +262,6 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		}
 		lineCountStr := strconv.Itoa(maxLineNumber)
 		maxDigits := len(lineCountStr)
-		fmt.Printf("Max line number: %d, lineCountStr: %s, maxDigits: %d\n", maxLineNumber, lineCountStr, maxDigits)
 
 		// Calculate base width for digits
 		lnw, err := config.Font.MeasureString(strings.Repeat("9", maxDigits), config.FontSize, &fonts.FontStyle{
@@ -370,12 +373,10 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	}
 
 	// Draw line highlights
-	fmt.Printf("Drawing line highlights with padding: top=%d, bottom=%d\n", config.PaddingTop, config.PaddingBottom)
 	currentY := config.PaddingTop
 	for i := range wrappedLines {
 		originalLineIdx := lineToWrappedMap[i]
 		if lines[originalLineIdx].Highlight {
-			fmt.Printf("Drawing highlight for line %d at y=%d (lineHeight=%d)\n", i+1, currentY, lineHeight)
 
 			// Calculate highlight rectangle based on whether line numbers are shown
 			var highlightRect image.Rectangle

@@ -19,6 +19,8 @@ import (
 	"github.com/charmbracelet/x/xpty"
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/render"
 	"golang.org/x/term"
@@ -48,27 +50,31 @@ func parseHexColor(hex string) (color.Color, error) {
 	return color.RGBA{R: r, G: g, B: b, A: a}, nil
 }
 
-func parseHighlightLines(input string) ([]int, error) {
-	var result []int
-	parts := strings.Split(input, ";")
+func parseLineRanges(input []string) ([]content.LineRange, error) {
+	var result []content.LineRange
 
-	for _, part := range parts {
-		if strings.Contains(part, "-") {
-			// Handle range (e.g., "1-3")
-			var start, end int
-			if _, err := fmt.Sscanf(part, "%d-%d", &start, &end); err != nil {
-				return nil, err
+	for _, part := range input {
+		parts := strings.Split(part, "-")
+		if len(parts) > 2 {
+			return nil, fmt.Errorf("invalid highlight line format: %s; expected start and end line numbers (e.g., 1-5)", part)
+		}
+
+		if len(parts) == 1 {
+			num, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+			if err != nil {
+				return nil, fmt.Errorf("invalid line number: %s", err)
 			}
-			for i := start; i <= end; i++ {
-				result = append(result, i)
-			}
+			result = append(result, content.LineRange{Start: num, End: num})
 		} else {
-			// Handle single line
-			var line int
-			if _, err := fmt.Sscanf(part, "%d", &line); err != nil {
-				return nil, err
+			start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+			if err != nil {
+				return nil, fmt.Errorf("invalid start line number: %s", err)
 			}
-			result = append(result, line)
+			end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+			if err != nil {
+				return nil, fmt.Errorf("invalid end line number: %s", err)
+			}
+			result = append(result, content.LineRange{Start: start, End: end})
 		}
 	}
 
@@ -165,31 +171,26 @@ func executeComamand(ctx context.Context, args []string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
-func renderCode(config *Config, echo bool, code string) error {
+func renderCode(config *Config, echo bool, input string) error {
 	canvas, err := makeCanvas(config)
 	if err != nil {
 		return err
 	}
 
-	// Configure highlighted lines
-	highlightedLines := []render.LineRange{}
-	if config.HighlightLines != "" {
-		lines, err := parseHighlightLines(config.HighlightLines)
-		if err != nil {
-			return err
-		}
-		for _, line := range lines {
-			highlightedLines = append(highlightedLines, render.LineRange{Start: line, End: line})
-		}
-	}
-
 	// Get font
 	fontSize := 14.0
 	var requestedFont *fonts.Font
-	if config.Font != "" {
+	if config.Font == "" {
+		requestedFont, err = fonts.GetFallback(fonts.FallbackMono)
+		if err != nil {
+			return err
+		}
+	} else {
 		var fontStr string
 		fontStr, fontSize = parseFonts(config.Font)
-		if fontStr != "" {
+		if fontStr == "" {
+			return fmt.Errorf("invalid font: %s", config.Font)
+		} else {
 			requestedFont, err = fonts.GetFont(fontStr, nil)
 			if err != nil {
 				return err
@@ -197,32 +198,47 @@ func renderCode(config *Config, echo bool, code string) error {
 		}
 	}
 
-	// Configure code style
-	canvas.WithCodeStyle(&render.CodeStyle{
-		Language:        config.Language,
-		Theme:           strings.ToLower(config.Theme),
-		FontFamily:      requestedFont,
-		FontSize:        fontSize,
-		TabWidth:        config.TabWidth,
-		PaddingLeft:     config.CodePadLeft,
-		PaddingRight:    config.CodePadRight,
-		PaddingTop:      config.CodePadTop,
-		PaddingBottom:   config.CodePadBottom,
-		ShowLineNumbers: !config.NoLineNumbers,
-		LineNumberRange: render.LineRange{
-			Start: config.StartLine,
-			End:   config.EndLine,
-		},
-		LineHighlightRanges: highlightedLines,
-	})
+	// Configure content
+	content := code.DefaultRenderer(input).
+		WithLanguage(config.Language).
+		WithTheme(config.Theme).
+		WithFontSize(fontSize).
+		WithLineHeight(config.LineHeight).
+		WithPadding(config.CodePadLeft, config.CodePadRight, config.CodePadTop, config.CodePadBottom).
+		WithLineNumberPadding(config.LineNumberPadding).
+		WithTabWidth(config.TabWidth).
+		WithMinWidth(config.MinWidth).
+		WithMaxWidth(config.MaxWidth).
+		WithLineNumbers(!config.NoLineNumbers).
+		WithFont(requestedFont)
 
-	// Render the image
-	img, err := canvas.RenderToImage(code)
+	// Configure highlighted lines
+	highlightedLines, err := parseLineRanges(config.HighlightLines)
 	if err != nil {
-		return fmt.Errorf("failed to render image: %v", err)
+		return err
+	}
+	for _, lr := range highlightedLines {
+		content.WithLineHighlightRange(lr.Start, lr.End)
 	}
 
+	// Configure line ranges
+	lineRanges, err := parseLineRanges(config.LineRanges)
+	if err != nil {
+		return err
+	}
+	for _, lr := range lineRanges {
+		content.WithLineRange(lr.Start, lr.End)
+	}
+
+	canvas.WithContent(content)
+
 	if config.ToClipboard || config.ToStdout {
+		img, err := canvas.RenderToImage()
+		if err != nil {
+			return err
+		}
+
+		// Encode to png
 		pngBuf := bytes.NewBuffer(nil)
 		if err := png.Encode(pngBuf, img); err != nil {
 			return fmt.Errorf("failed to encode image to png: %v", err)
@@ -254,7 +270,7 @@ func renderCode(config *Config, echo bool, code string) error {
 		return nil
 	}
 
-	err = saveImage(img, config)
+	err = saveCanvasToImage(canvas, config)
 	if err == nil {
 		if echo {
 			logMessage(styles.successBox, "WROTE", config.OutputFile)
@@ -431,7 +447,7 @@ func logMessage(box lipgloss.Style, tag string, message string) {
 	fmt.Fprintln(os.Stderr, centeredBox.Render(paddedTag)+" "+styles.info.Render(message))
 }
 
-func saveImage(img image.Image, config *Config) error {
+func saveCanvasToImage(canvas *render.Canvas, config *Config) error {
 	// If no output file is specified, use png as default
 	if config.OutputFile == "" {
 		config.OutputFile = "output.png"
@@ -447,11 +463,11 @@ func saveImage(img image.Image, config *Config) error {
 	// Save in the format matching the extension
 	switch ext {
 	case ".png":
-		return render.SaveAsPNG(img, config.OutputFile)
+		return canvas.SaveAsPNG(config.OutputFile)
 	case ".jpg", ".jpeg":
-		return render.SaveAsJPEG(img, config.OutputFile)
+		return canvas.SaveAsJPEG(config.OutputFile)
 	case ".bmp":
-		return render.SaveAsBMP(img, config.OutputFile)
+		return canvas.SaveAsBMP(config.OutputFile)
 	default:
 		return fmt.Errorf("unsupported file format: %s", ext)
 	}

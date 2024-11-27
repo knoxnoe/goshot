@@ -119,16 +119,13 @@ func Highlight(code string, opts *CodeStyle) (*HighlightedCode, error) {
 	// Set up highlighted lines
 	if len(opts.LineHighlightRanges) > 0 {
 		ranges := opts.LineHighlightRanges
-		fmt.Printf("Setting up line highlights with ranges: %+v\n", ranges)
 		for _, rangePair := range ranges {
 			// Convert 1-based line numbers to 0-based for internal use
 			start := rangePair.Start - 1
 			end := rangePair.End - 1
-			fmt.Printf("Processing range: start=%d, end=%d (1-based: %d, %d)\n", start, end, rangePair.Start, rangePair.End)
 			for i := start; i <= end; i++ {
 				formatter.highlightedLines[i] = true
 				formatter.Result.HighlightedLines = append(formatter.Result.HighlightedLines, i+1)
-				fmt.Printf("Highlighting line %d (1-based: %d)\n", i, i+1)
 			}
 		}
 	}
@@ -190,7 +187,6 @@ func (f *customFormatter) createToken(text string, tokenType chroma.TokenType, s
 
 func (f *customFormatter) addLine(line Line) {
 	line.Highlight = f.highlightedLines[f.lineNumber]
-	fmt.Printf("Adding line %d, highlight=%v\n", f.lineNumber, line.Highlight)
 	f.Result.Lines = append(f.Result.Lines, line)
 	f.lineNumber++
 	f.currentColumn = 0 // Reset column position for new line

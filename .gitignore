@@ -13,3 +13,5 @@ goshot
 # Vendor files
 vendor/
 vendor.tar.gz
+
+/example_output/

@@ -3,6 +3,7 @@ package main
 import (
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
@@ -34,15 +35,15 @@ func main() {
 				WithColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).
 				WithPadding(40),
 		).
-		WithContent(code.DefaultCodeRenderer(input).
+		WithContent(code.DefaultRenderer(input).
 			WithLanguage("go").
 			WithTheme("dracula").
 			WithTabWidth(4).
-			WithShowLineNumbers(true).
-			WithMaxWidth(400),
+			WithLineNumbers(true),
 		)
 
-	err := canvas.SaveAsPNG("basic.png")
+	os.MkdirAll("example_output", 0755)
+	err := canvas.SaveAsPNG("example_output/basic.png")
 	if err != nil {
 		log.Fatal(err)
 	}

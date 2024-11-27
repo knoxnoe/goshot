@@ -3,14 +3,16 @@ package main
 import (
 	"image/color"
 	"log"
+	"os"
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/render"
 )
 
 func main() {
-	code := `// Example function demonstrating error handling
+	input := `// Example function demonstrating error handling
 func processItem(item string) error {
     if item == "" {
         return errors.New("item cannot be empty")
@@ -36,19 +38,16 @@ func processItem(item string) error {
 			chrome.MacStyleSequoia,
 			chrome.WithTitle("Gradient Example"))).
 		WithBackground(bg).
-		WithCodeStyle(&render.CodeStyle{
-			Language:        "go",
-			Theme:           "dracula",
-			TabWidth:        4,
-			ShowLineNumbers: true,
-		})
+		WithContent(code.DefaultRenderer(input).
+			WithLanguage("go").
+			WithTheme("dracula").
+			WithTabWidth(4).
+			WithLineNumbers(true),
+		)
 
-	img, err := canvas.RenderToImage(code)
+	os.MkdirAll("example_output", 0755)
+	err := canvas.SaveAsPNG("example_output/gradients.png")
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := render.SaveAsPNG(img, "gradient.png"); err != nil {
 		log.Fatal(err)
 	}
 }
