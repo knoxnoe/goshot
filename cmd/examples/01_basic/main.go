@@ -6,41 +6,44 @@ import (
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
+	"github.com/watzon/goshot/pkg/content/code"
 	"github.com/watzon/goshot/pkg/render"
 )
 
 func main() {
 	// Simple example showing basic usage with a solid color background
-	code := `package main
+	input := `package main
 
-import "fmt"
+import (
+    "fmt"
+    "strings"
+)
 
+// This is a very long comment that should wrap to multiple lines when the width is constrained. We'll make it even longer to ensure it wraps at least once or twice when rendered.
 func main() {
-    fmt.Println("Hello, World!")
+    message := "Hello, " + strings.Repeat("World! ", 10)
+    fmt.Println(message)
 }`
 
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacChrome(
+		WithChrome(chrome.NewMacChrome(
 			chrome.MacStyleSequoia,
 			chrome.WithTitle("Basic Example"))).
-		SetBackground(
+		WithBackground(
 			background.NewColorBackground().
-				SetColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).
-				SetPadding(40),
+				WithColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).
+				WithPadding(40),
 		).
-		SetCodeStyle(&render.CodeStyle{
-			Language:        "go",
-			Theme:           "dracula",
-			TabWidth:        4,
-			ShowLineNumbers: true,
-		})
+		WithContent(code.DefaultCodeRenderer(input).
+			WithLanguage("go").
+			WithTheme("dracula").
+			WithTabWidth(4).
+			WithShowLineNumbers(true).
+			WithMaxWidth(400),
+		)
 
-	img, err := canvas.RenderToImage(code)
+	err := canvas.SaveAsPNG("basic.png")
 	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := render.SaveAsPNG(img, "basic.png"); err != nil {
 		log.Fatal(err)
 	}
 }

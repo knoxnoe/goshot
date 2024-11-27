@@ -25,20 +25,20 @@ func NewColorBackground() ColorBackground {
 	}
 }
 
-// SetColor sets the background color
-func (bg ColorBackground) SetColor(c color.Color) ColorBackground {
+// WithColor sets the background color
+func (bg ColorBackground) WithColor(c color.Color) ColorBackground {
 	bg.color = c
 	return bg
 }
 
-// SetPadding sets equal padding for all sides
-func (bg ColorBackground) SetPadding(value int) ColorBackground {
+// WithPadding sets equal padding for all sides
+func (bg ColorBackground) WithPadding(value int) ColorBackground {
 	bg.padding = NewPadding(value)
 	return bg
 }
 
-// SetPaddingDetailed sets detailed padding for each side
-func (bg ColorBackground) SetPaddingDetailed(top, right, bottom, left int) ColorBackground {
+// WithPaddingDetailed sets detailed padding for each side
+func (bg ColorBackground) WithPaddingDetailed(top, right, bottom, left int) ColorBackground {
 	bg.padding = Padding{
 		Top:    top,
 		Right:  right,
@@ -48,14 +48,14 @@ func (bg ColorBackground) SetPaddingDetailed(top, right, bottom, left int) Color
 	return bg
 }
 
-// SetCornerRadius sets the corner radius for the background
-func (bg ColorBackground) SetCornerRadius(radius float64) Background {
+// WithCornerRadius sets the corner radius for the background
+func (bg ColorBackground) WithCornerRadius(radius float64) Background {
 	bg.cornerRadius = radius
 	return bg
 }
 
-// SetShadow sets the shadow configuration for the background
-func (bg ColorBackground) SetShadow(shadow Shadow) Background {
+// WithShadow sets the shadow configuration for the background
+func (bg ColorBackground) WithShadow(shadow Shadow) Background {
 	bg.shadow = shadow
 	return bg
 }
@@ -109,12 +109,18 @@ func drawRoundedRect(dst draw.Image, r image.Rectangle, col color.Color, radius 
 
 // Render applies the background to the given content image
 // It returns a new image with the background applied and the content centered
-func (bg ColorBackground) Render(content image.Image) image.Image {
+func (bg ColorBackground) Render(content image.Image) (image.Image, error) {
+	if content == nil {
+		width := bg.padding.Left + bg.padding.Right
+		height := bg.padding.Top + bg.padding.Bottom
+		content = image.NewRGBA(image.Rect(0, 0, width, height))
+	}
+
 	bounds := content.Bounds()
 
 	// If shadow is configured, apply it to the content first
 	if bg.shadow != nil {
-		// Set the shadow's corner radius to match the background
+		// With the shadow's corner radius to match the background
 		bg.shadow.(*shadowImpl).cornerRadius = bg.cornerRadius
 		content = bg.shadow.Apply(content)
 		bounds = content.Bounds() // Update bounds to include shadow
@@ -143,5 +149,5 @@ func (bg ColorBackground) Render(content image.Image) image.Image {
 	)
 	draw.Draw(img, contentRect, content, bounds.Min, draw.Over)
 
-	return img
+	return img, nil
 }

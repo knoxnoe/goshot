@@ -9,13 +9,13 @@ import (
 type Background interface {
 	// Render applies the background to the given content image
 	// It returns a new image with the background applied
-	Render(content image.Image) image.Image
+	Render(content image.Image) (image.Image, error)
 
-	// SetCornerRadius sets the corner radius for the background
-	SetCornerRadius(radius float64) Background
+	// WithCornerRadius sets the corner radius for the background
+	WithCornerRadius(radius float64) Background
 
-	// SetShadow sets the shadow configuration for the background
-	SetShadow(shadow Shadow) Background
+	// WithShadow sets the shadow configuration for the background
+	WithShadow(shadow Shadow) Background
 }
 
 var (

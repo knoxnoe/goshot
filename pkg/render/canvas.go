@@ -6,399 +6,77 @@ import (
 
 	"github.com/watzon/goshot/pkg/background"
 	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/fonts"
-	"github.com/watzon/goshot/pkg/syntax"
-	"golang.org/x/image/font"
+	"github.com/watzon/goshot/pkg/content"
 )
-
-// LineRange represents a range of line numbers
-type LineRange struct {
-	Start int
-	End   int
-}
-
-// CodeStyle represents all code styling options
-type CodeStyle struct {
-	// Syntax highlighting options
-	Theme               string
-	Language            string
-	TabWidth            int
-	ShowLineNumbers     bool
-	LineNumberRange     LineRange
-	LineHighlightRanges []LineRange
-	ShowPrompt          bool
-	PromptCommand       string
-
-	// Rendering options
-	UseANSI           bool
-	FontSize          float64
-	FontFamily        *fonts.Font
-	FontStyle         *fonts.FontStyle
-	LineHeight        float64
-	PaddingLeft       int
-	PaddingRight      int
-	PaddingTop        int
-	PaddingBottom     int
-	MinWidth          int
-	MaxWidth          int
-	LineNumberPadding int
-}
-
-// NewCodeStyle creates a new CodeStyle with default values
-func NewCodeStyle() *CodeStyle {
-	return &CodeStyle{
-		FontSize: 14,
-		FontStyle: &fonts.FontStyle{
-			Weight:  fonts.WeightRegular,
-			Stretch: fonts.StretchNormal,
-		},
-		LineHeight:    1.5,
-		PaddingLeft:   10,
-		PaddingRight:  10,
-		PaddingTop:    10,
-		PaddingBottom: 10,
-	}
-}
-
-// WithLanguage sets the language for syntax highlighting
-func (s *CodeStyle) WithLanguage(lang string) *CodeStyle {
-	s.Language = lang
-	return s
-}
-
-// WithTheme sets the syntax highlighting theme
-func (s *CodeStyle) WithTheme(theme string) *CodeStyle {
-	s.Theme = theme
-	return s
-}
-
-// WithTabWidth sets the tab width in spaces
-func (s *CodeStyle) WithTabWidth(width int) *CodeStyle {
-	s.TabWidth = width
-	return s
-}
-
-// WithLineNumbers enables or disables line numbers
-func (s *CodeStyle) WithLineNumbers(show bool) *CodeStyle {
-	s.ShowLineNumbers = show
-	return s
-}
-
-// WithLineNumberRange sets the range of line numbers to display
-func (s *CodeStyle) WithLineNumberRange(start, end int) *CodeStyle {
-	s.LineNumberRange = LineRange{Start: start, End: end}
-	return s
-}
-
-// WithLineHighlight adds a line highlight range
-func (s *CodeStyle) WithLineHighlight(start, end int) *CodeStyle {
-	s.LineHighlightRanges = append(s.LineHighlightRanges, LineRange{Start: start, End: end})
-	return s
-}
-
-// WithPrompt sets the prompt settings
-func (s *CodeStyle) WithPrompt(show bool, command string) *CodeStyle {
-	s.ShowPrompt = show
-	s.PromptCommand = command
-	return s
-}
-
-// WithFont sets the font family and style
-func (s *CodeStyle) WithFont(fontName string, style *fonts.FontStyle) *CodeStyle {
-	font, err := fonts.GetFont(fontName, style)
-	if err == nil {
-		s.FontFamily = font
-		s.FontStyle = style
-	}
-	return s
-}
-
-// WithFontSize sets the font size in points
-func (s *CodeStyle) WithFontSize(size float64) *CodeStyle {
-	s.FontSize = size
-	return s
-}
-
-// WithLineHeight sets the line height as a multiplier of font size
-func (s *CodeStyle) WithLineHeight(height float64) *CodeStyle {
-	s.LineHeight = height
-	return s
-}
-
-// WithPadding sets all padding values
-func (s *CodeStyle) WithPadding(left, right, top, bottom int) *CodeStyle {
-	s.PaddingLeft = left
-	s.PaddingRight = right
-	s.PaddingTop = top
-	s.PaddingBottom = bottom
-	return s
-}
-
-// WithWidth sets the minimum and maximum width constraints
-func (s *CodeStyle) WithWidth(min, max int) *CodeStyle {
-	s.MinWidth = min
-	s.MaxWidth = max
-	return s
-}
-
-// WithLineNumberPadding sets the padding for line numbers
-func (s *CodeStyle) WithLineNumberPadding(padding int) *CodeStyle {
-	s.LineNumberPadding = padding
-	return s
-}
-
-// WithANSI enables or disables ANSI color processing
-func (s *CodeStyle) WithANSI(useANSI bool) *CodeStyle {
-	s.UseANSI = useANSI
-	return s
-}
 
 // Canvas represents a rendering canvas with all necessary configuration
 type Canvas struct {
 	chrome     chrome.Chrome
 	background background.Background
-	codeStyle  *CodeStyle
+	content    content.Content
 }
 
 // NewCanvas creates a new Canvas instance with default options
 func NewCanvas() *Canvas {
-	// Get default monospace font
-	defaultFont, err := fonts.GetFallback(fonts.FallbackMono)
-	if err != nil {
-		// Fallback will be handled by the syntax package
-		defaultFont = nil
-	}
-
 	return &Canvas{
-		chrome:     chrome.NewBlankChrome(),
+		chrome:     nil,
 		background: nil, // No background by default
-		codeStyle: &CodeStyle{
-			Theme:               "dracula",
-			Language:            "", // Empty means auto-detect
-			TabWidth:            4,
-			ShowLineNumbers:     true,
-			LineNumberRange:     LineRange{},
-			LineHighlightRanges: []LineRange{},
-			FontSize:            14,
-			FontFamily:          defaultFont,
-			FontStyle: &fonts.FontStyle{
-				Weight:  fonts.WeightRegular,
-				Stretch: fonts.StretchNormal,
-			},
-			LineHeight:        1.5,
-			PaddingLeft:       16,
-			PaddingRight:      16,
-			PaddingTop:        16,
-			PaddingBottom:     16,
-			MinWidth:          0,
-			MaxWidth:          0,
-			LineNumberPadding: 16,
-			ShowPrompt:        false,
-			PromptCommand:     "",
-		},
+		content:    nil, // No content by default
 	}
 }
 
-// SetChrome sets the chrome renderer
-func (c *Canvas) SetChrome(chrome chrome.Chrome) *Canvas {
+// WithChrome sets the chrome renderer
+func (c *Canvas) WithChrome(chrome chrome.Chrome) *Canvas {
 	c.chrome = chrome
 	return c
 }
 
-// SetBackground sets the background renderer
-func (c *Canvas) SetBackground(bg background.Background) *Canvas {
+// WithBackground sets the background renderer
+func (c *Canvas) WithBackground(bg background.Background) *Canvas {
 	c.background = bg
 	return c
 }
 
-// SetCodeStyle sets the code styling options
-func (c *Canvas) SetCodeStyle(style *CodeStyle) *Canvas {
-	c.codeStyle = style
+// WithContent sets the content renderer
+func (c *Canvas) WithContent(content content.Content) *Canvas {
+	c.content = content
 	return c
 }
 
-// SetFont sets the font family to use for rendering
-func (c *Canvas) SetFont(fontName string) error {
-	font, err := fonts.GetFont(fontName, c.codeStyle.FontStyle)
-	if err != nil {
-		return fmt.Errorf("error setting font: %v", err)
-	}
-	c.codeStyle.FontFamily = font
-	return nil
-}
-
-// SetFontWithStyle sets the font family with specific style options
-func (c *Canvas) SetFontWithStyle(fontName string, style *fonts.FontStyle) error {
-	font, err := fonts.GetFont(fontName, style)
-	if err != nil {
-		return fmt.Errorf("error setting font: %v", err)
-	}
-	c.codeStyle.FontFamily = font
-	c.codeStyle.FontStyle = style
-	return nil
-}
-
-// SetFontStyle sets just the font style without changing the font family
-func (c *Canvas) SetFontStyle(style *fonts.FontStyle) *Canvas {
-	c.codeStyle.FontStyle = style
-	if c.codeStyle.FontFamily != nil {
-		// Try to update the font with the new style
-		if font, err := fonts.GetFont(c.codeStyle.FontFamily.Name, style); err == nil {
-			c.codeStyle.FontFamily = font
-		}
-	}
-	return c
-}
-
-// GetFontFace creates a new font face with the current font and style settings
-func (c *Canvas) GetFontFace() (font.Face, error) {
-	if c.codeStyle.FontFamily == nil {
-		return nil, fmt.Errorf("no font family set")
+// RenderToImage renders an image using the given chrome, background, and content;
+// all of which are optional, but at least one is required
+func (c *Canvas) RenderToImage() (image.Image, error) {
+	// Validate that at least one renderer is set
+	if c.chrome == nil && c.background == nil && c.content == nil {
+		return nil, fmt.Errorf("at least one renderer must be set")
 	}
 
-	face, err := c.codeStyle.FontFamily.GetFace(c.codeStyle.FontSize, c.codeStyle.FontStyle)
-	if err != nil {
-		return nil, fmt.Errorf("error creating font face: %v", err)
-	}
+	var img image.Image
+	var err error
 
-	return face.Face, nil
-}
-
-// SetFontSize sets the font size in points
-func (c *Canvas) SetFontSize(size float64) *Canvas {
-	c.codeStyle.FontSize = size
-	return c
-}
-
-// SetLineHeight sets the line height as a multiplier of font size
-func (c *Canvas) SetLineHeight(height float64) *Canvas {
-	c.codeStyle.LineHeight = height
-	return c
-}
-
-// RenderToImage renders the code to an image
-func (c *Canvas) RenderToImage(code string) (image.Image, error) {
-	// Get highlighted code
-	highlightOpts := &syntax.HighlightOptions{
-		UseANSI:          c.codeStyle.UseANSI,
-		ShowPrompt:       c.codeStyle.ShowPrompt,
-		PromptCommand:    c.codeStyle.PromptCommand,
-		Style:            c.codeStyle.Theme,
-		Language:         c.codeStyle.Language,
-		TabWidth:         c.codeStyle.TabWidth,
-		ShowLineNums:     c.codeStyle.ShowLineNumbers,
-		HighlightedLines: flattenHighlightRanges(c.codeStyle.LineHighlightRanges),
-	}
-
-	highlighted, err := syntax.Highlight(code, highlightOpts)
-	if err != nil {
-		return nil, fmt.Errorf("error highlighting code: %v", err)
-	}
-
-	// Create render config using highlighted code's colors
-	renderConfig := syntax.DefaultConfig().
-		SetShowLineNumbers(c.codeStyle.ShowLineNumbers).
-		SetLineHighlightColor(highlighted.HighlightColor).
-		SetLineNumberColor(highlighted.LineNumberColor).
-		SetLineNumberBg(highlighted.GutterColor)
-
-	// Apply font settings
-	if c.codeStyle.FontFamily == nil {
-		fallback, err := fonts.GetFallback(fonts.FallbackMono)
+	// First, render the content
+	if c.content != nil {
+		img, err = c.content.Render()
 		if err != nil {
-			return nil, fmt.Errorf("error getting fallback font: %v", err)
+			return nil, err
 		}
-		c.codeStyle.FontFamily = fallback
 	}
 
-	face, err := c.GetFontFace()
-	if err != nil {
-		return nil, fmt.Errorf("error getting font face: %v", err)
-	}
-
-	renderConfig.SetFontFace(face, c.codeStyle.FontSize)
-
-	if c.codeStyle.LineHeight > 0 {
-		renderConfig.SetLineHeight(c.codeStyle.LineHeight)
-	}
-	if c.codeStyle.PaddingLeft > 0 {
-		renderConfig.SetPaddingLeft(c.codeStyle.PaddingLeft)
-	}
-	if c.codeStyle.PaddingRight > 0 {
-		renderConfig.SetPaddingRight(c.codeStyle.PaddingRight)
-	}
-	if c.codeStyle.PaddingTop > 0 {
-		renderConfig.SetPaddingTop(c.codeStyle.PaddingTop)
-	}
-	if c.codeStyle.PaddingBottom > 0 {
-		renderConfig.SetPaddingBottom(c.codeStyle.PaddingBottom)
-	}
-	if c.codeStyle.MinWidth > 0 {
-		renderConfig.SetMinWidth(c.codeStyle.MinWidth)
-	}
-	if c.codeStyle.MaxWidth > 0 {
-		renderConfig.SetMaxWidth(c.codeStyle.MaxWidth)
-	}
-	if c.codeStyle.LineNumberPadding > 0 {
-		renderConfig.SetLineNumberPadding(c.codeStyle.LineNumberPadding)
-	}
-	if c.codeStyle.TabWidth > 0 {
-		renderConfig.SetTabWidth(c.codeStyle.TabWidth)
-	}
-
-	// Set line number range if specified
-	if c.codeStyle.LineNumberRange.Start > 0 || c.codeStyle.LineNumberRange.End > 0 {
-		renderConfig.StartLineNumber = c.codeStyle.LineNumberRange.Start
-		renderConfig.EndLineNumber = c.codeStyle.LineNumberRange.End
-	}
-
-	// Create the image
-	img, err := highlighted.RenderToImage(renderConfig)
-	if err != nil {
-		return nil, fmt.Errorf("error rendering code: %v", err)
-	}
-
-	// Apply chrome if set
+	// Then, apply the chrome
 	if c.chrome != nil {
 		img, err = c.chrome.Render(img)
 		if err != nil {
-			return nil, fmt.Errorf("error rendering chrome: %v", err)
+			return nil, err
 		}
 	}
 
-	// Apply background if set
+	// Finally apply the background
 	if c.background != nil {
-		img = c.background.Render(img)
+		img, err = c.background.Render(img)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return img, nil
-}
-
-// flattenHighlightRanges converts a slice of LineRanges into a slice of line numbers
-func flattenHighlightRanges(ranges []LineRange) []int {
-	if len(ranges) == 0 {
-		return nil
-	}
-
-	// First, count how many lines we need
-	count := 0
-	for _, r := range ranges {
-		if r.End < r.Start {
-			continue // Skip invalid ranges
-		}
-		count += r.End - r.Start + 1
-	}
-
-	// Create and fill the slice
-	lines := make([]int, 0, count)
-	for _, r := range ranges {
-		if r.End < r.Start {
-			continue
-		}
-		for line := r.Start; line <= r.End; line++ {
-			lines = append(lines, line)
-		}
-	}
-
-	return lines
 }

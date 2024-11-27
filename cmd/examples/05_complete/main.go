@@ -60,66 +60,66 @@ func main() {
 		chrome.WithCornerRadius(8))
 
 	colorBackground := background.NewColorBackground().
-		SetColor(color.RGBA{R: 40, G: 42, B: 54, A: 255}).
-		SetPadding(30).
-		SetCornerRadius(8).
-		SetShadow(
+		WithColor(color.RGBA{R: 40, G: 42, B: 54, A: 255}).
+		WithPadding(30).
+		WithCornerRadius(8).
+		WithShadow(
 			background.NewShadow().
-				SetOffset(0, 0).                                // Slightly downward offset
-				SetBlur(30).                                    // Large blur for softness
-				SetSpread(10).                                  // Large spread for more presence
-				SetColor(color.RGBA{R: 0, G: 0, B: 0, A: 120}), // Slightly opaque
+				WithOffset(0, 0).                                // Slightly downward offset
+				WithBlur(30).                                    // Large blur for softness
+				WithSpread(10).                                  // Large spread for more presence
+				WithColor(color.RGBA{R: 0, G: 0, B: 0, A: 120}), // Slightly opaque
 		)
 
 	linearGradientBackground := background.NewGradientBackground(
 		background.LinearGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40)
+	).WithAngle(90).WithPadding(40)
 
 	radialGradientBackground := background.NewGradientBackground(
 		background.RadialGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetCenter(0.5, 0.5).SetPadding(40)
+	).WithCenter(0.5, 0.5).WithPadding(40)
 
 	angularGradientBackground := background.NewGradientBackground(
 		background.AngularGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40).SetCenter(0.5, 0.5)
+	).WithAngle(90).WithPadding(40).WithCenter(0.5, 0.5)
 
 	diamondGradientBackground := background.NewGradientBackground(
 		background.DiamondGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40).SetCenter(0.5, 0.5)
+	).WithAngle(90).WithPadding(40).WithCenter(0.5, 0.5)
 
 	spiralGradientBackground := background.NewGradientBackground(
 		background.SpiralGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40).SetCenter(0.5, 0.5).SetIntensity(1.5)
+	).WithAngle(90).WithPadding(40).WithCenter(0.5, 0.5).WithIntensity(1.5)
 
 	squareGradientBackground := background.NewGradientBackground(
 		background.SquareGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40).SetCenter(0.5, 0.5)
+	).WithAngle(90).WithPadding(40).WithCenter(0.5, 0.5)
 
 	starGradientBackground := background.NewGradientBackground(
 		background.StarGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(90).SetPadding(40).SetCenter(0.5, 0.5).SetIntensity(1.5)
+	).WithAngle(90).WithPadding(40).WithCenter(0.5, 0.5).WithIntensity(1.5)
 
 	imageBackground, err := background.NewImageBackgroundFromFile("cmd/examples/03_image_background/background.png")
 	if err != nil {
 		log.Fatal(err)
 	}
 	imageBackground = imageBackground.
-		SetScaleMode(background.ImageScaleTile).
-		SetBlurRadius(0.5)
+		WithScaleMode(background.ImageScaleTile).
+		WithBlurRadius(0.5)
 
 	// Set up the code style
 	codeStyle := render.NewCodeStyle().
@@ -155,9 +155,9 @@ func main() {
 	for i, chrome := range chromes {
 		for j, background := range backgrounds {
 			canvas := render.NewCanvas().
-				SetChrome(chrome).
-				SetBackground(background).
-				SetCodeStyle(codeStyle)
+				WithChrome(chrome).
+				WithBackground(background).
+				WithCodeStyle(codeStyle)
 			img, err := canvas.RenderToImage(code)
 			if err != nil {
 				log.Fatal(err)

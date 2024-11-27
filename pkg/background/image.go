@@ -58,14 +58,14 @@ func NewImageBackgroundFromFile(path string) (ImageBackground, error) {
 	return NewImageBackground(img), nil
 }
 
-// SetScaleMode sets the scaling mode for the image
-func (bg ImageBackground) SetScaleMode(mode ImageScaleMode) ImageBackground {
+// WithScaleMode sets the scaling mode for the image
+func (bg ImageBackground) WithScaleMode(mode ImageScaleMode) ImageBackground {
 	bg.scaleMode = mode
 	return bg
 }
 
-// SetScaleModeString sets the scaling mode for the image from a string
-func (bg ImageBackground) SetScaleModeString(mode string) ImageBackground {
+// WithScaleModeString sets the scaling mode for the image from a string
+func (bg ImageBackground) WithScaleModeString(mode string) ImageBackground {
 	switch mode {
 	case "fit":
 		bg.scaleMode = ImageScaleFit
@@ -81,26 +81,26 @@ func (bg ImageBackground) SetScaleModeString(mode string) ImageBackground {
 	return bg
 }
 
-// SetBlurRadius sets the blur radius for the background image
-func (bg ImageBackground) SetBlurRadius(radius float64) ImageBackground {
+// WithBlurRadius sets the blur radius for the background image
+func (bg ImageBackground) WithBlurRadius(radius float64) ImageBackground {
 	bg.blurRadius = radius
 	return bg
 }
 
-// SetOpacity sets the opacity of the background image (0.0 - 1.0)
-func (bg ImageBackground) SetOpacity(opacity float64) ImageBackground {
+// WithOpacity sets the opacity of the background image (0.0 - 1.0)
+func (bg ImageBackground) WithOpacity(opacity float64) ImageBackground {
 	bg.opacity = math.Max(0, math.Min(1, opacity))
 	return bg
 }
 
-// SetPadding sets equal padding for all sides
-func (bg ImageBackground) SetPadding(value int) ImageBackground {
+// WithPadding sets equal padding for all sides
+func (bg ImageBackground) WithPadding(value int) ImageBackground {
 	bg.padding = NewPadding(value)
 	return bg
 }
 
-// SetPaddingDetailed sets detailed padding for each side
-func (bg ImageBackground) SetPaddingDetailed(top, right, bottom, left int) ImageBackground {
+// WithPaddingDetailed sets detailed padding for each side
+func (bg ImageBackground) WithPaddingDetailed(top, right, bottom, left int) ImageBackground {
 	bg.padding = Padding{
 		Top:    top,
 		Right:  right,
@@ -110,14 +110,14 @@ func (bg ImageBackground) SetPaddingDetailed(top, right, bottom, left int) Image
 	return bg
 }
 
-// SetCornerRadius sets the corner radius for the background
-func (bg ImageBackground) SetCornerRadius(radius float64) Background {
+// WithCornerRadius sets the corner radius for the background
+func (bg ImageBackground) WithCornerRadius(radius float64) Background {
 	bg.cornerRadius = radius
 	return bg
 }
 
-// SetShadow sets the shadow configuration for the background
-func (bg ImageBackground) SetShadow(shadow Shadow) Background {
+// WithShadow sets the shadow configuration for the background
+func (bg ImageBackground) WithShadow(shadow Shadow) Background {
 	bg.shadow = shadow
 	return bg
 }
@@ -213,7 +213,13 @@ func applyOpacity(img *image.RGBA, opacity float64) *image.RGBA {
 }
 
 // Render applies the image background to the given content image
-func (bg ImageBackground) Render(content image.Image) image.Image {
+func (bg ImageBackground) Render(content image.Image) (image.Image, error) {
+	if content == nil {
+		width := bg.padding.Left + bg.padding.Right
+		height := bg.padding.Top + bg.padding.Bottom
+		content = image.NewRGBA(image.Rect(0, 0, width, height))
+	}
+
 	// Create a new image for the content with shadow
 	contentWithShadow := content
 	if bg.shadow != nil {
@@ -260,5 +266,5 @@ func (bg ImageBackground) Render(content image.Image) image.Image {
 	}
 	draw.Draw(result, shadowBounds.Add(contentPos), contentWithShadow, shadowBounds.Min, draw.Over)
 
-	return result
+	return result, nil
 }

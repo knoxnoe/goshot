@@ -61,33 +61,33 @@ func NewGradientBackground(gradientType GradientType, stops ...GradientStop) Gra
 	}
 }
 
-// SetAngle sets the angle for linear gradients (in degrees)
-func (bg GradientBackground) SetAngle(angle float64) GradientBackground {
+// WithAngle sets the angle for linear gradients (in degrees)
+func (bg GradientBackground) WithAngle(angle float64) GradientBackground {
 	bg.angle = angle
 	return bg
 }
 
-// SetCenter sets the center point for radial and angular gradients
-func (bg GradientBackground) SetCenter(x, y float64) GradientBackground {
+// WithCenter sets the center point for radial and angular gradients
+func (bg GradientBackground) WithCenter(x, y float64) GradientBackground {
 	bg.centerX = x
 	bg.centerY = y
 	return bg
 }
 
-// SetIntensity sets the intensity modifier for special gradients
-func (bg GradientBackground) SetIntensity(intensity float64) GradientBackground {
+// WithIntensity sets the intensity modifier for special gradients
+func (bg GradientBackground) WithIntensity(intensity float64) GradientBackground {
 	bg.intensity = intensity
 	return bg
 }
 
-// SetPadding sets equal padding for all sides
-func (bg GradientBackground) SetPadding(value int) GradientBackground {
+// WithPadding sets equal padding for all sides
+func (bg GradientBackground) WithPadding(value int) GradientBackground {
 	bg.padding = NewPadding(value)
 	return bg
 }
 
-// SetPaddingDetailed sets detailed padding for each side
-func (bg GradientBackground) SetPaddingDetailed(top, right, bottom, left int) GradientBackground {
+// WithPaddingDetailed sets detailed padding for each side
+func (bg GradientBackground) WithPaddingDetailed(top, right, bottom, left int) GradientBackground {
 	bg.padding = Padding{
 		Top:    top,
 		Right:  right,
@@ -97,14 +97,14 @@ func (bg GradientBackground) SetPaddingDetailed(top, right, bottom, left int) Gr
 	return bg
 }
 
-// SetCornerRadius sets the corner radius for the background
-func (bg GradientBackground) SetCornerRadius(radius float64) Background {
+// WithCornerRadius sets the corner radius for the background
+func (bg GradientBackground) WithCornerRadius(radius float64) Background {
 	bg.cornerRadius = radius
 	return bg
 }
 
-// SetShadow sets the shadow configuration for the background
-func (bg GradientBackground) SetShadow(shadow Shadow) Background {
+// WithShadow sets the shadow configuration for the background
+func (bg GradientBackground) WithShadow(shadow Shadow) Background {
 	bg.shadow = shadow
 	return bg
 }
@@ -147,7 +147,13 @@ func (bg GradientBackground) getColorAt(pos float64) color.Color {
 }
 
 // Render applies the gradient background to the given content image
-func (bg GradientBackground) Render(content image.Image) image.Image {
+func (bg GradientBackground) Render(content image.Image) (image.Image, error) {
+	if content == nil {
+		width := bg.padding.Left + bg.padding.Right
+		height := bg.padding.Top + bg.padding.Bottom
+		content = image.NewRGBA(image.Rect(0, 0, width, height))
+	}
+
 	// Create a new image for the content with shadow
 	contentWithShadow := content
 	if bg.shadow != nil {
@@ -257,5 +263,5 @@ func (bg GradientBackground) Render(content image.Image) image.Image {
 	}
 	draw.Draw(gradientImg, shadowBounds.Add(contentPos), contentWithShadow, shadowBounds.Min, draw.Over)
 
-	return gradientImg
+	return gradientImg, nil
 }

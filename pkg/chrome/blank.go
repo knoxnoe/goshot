@@ -1,7 +1,6 @@
 package chrome
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 
@@ -41,12 +40,12 @@ func NewBlankChrome(opts ...ChromeOption) *BlankChrome {
 	return c
 }
 
-func (c *BlankChrome) SetTheme(theme Theme) Chrome {
+func (c *BlankChrome) WithTheme(theme Theme) Chrome {
 	c.theme = theme
 	return c
 }
 
-func (c *BlankChrome) SetThemeByName(name string, variant ThemeVariant) Chrome {
+func (c *BlankChrome) WithThemeByName(name string, variant ThemeVariant) Chrome {
 	// Blank chrome only has one theme
 	return c
 }
@@ -59,7 +58,7 @@ func (c *BlankChrome) GetCurrentVariant() ThemeVariant {
 	return c.theme.Variant
 }
 
-func (c *BlankChrome) SetVariant(variant ThemeVariant) Chrome {
+func (c *BlankChrome) WithVariant(variant ThemeVariant) Chrome {
 	c.theme.Variant = variant
 	return c
 }
@@ -68,30 +67,28 @@ func (c *BlankChrome) CurrentTheme() Theme {
 	return c.theme
 }
 
-func (c *BlankChrome) SetTitle(_ string) Chrome {
+func (c *BlankChrome) WithTitle(_ string) Chrome {
 	// Blank chrome doesn't support titles
 	return c
 }
 
-func (c *BlankChrome) SetCornerRadius(radius float64) Chrome {
+func (c *BlankChrome) WithCornerRadius(radius float64) Chrome {
 	c.cornerRadius = radius
 	return c
 }
 
-func (c *BlankChrome) SetTitleBar(_ bool) Chrome {
+func (c *BlankChrome) WithTitleBar(_ bool) Chrome {
 	// Blank chrome doesn't support title bars
 	return c
 }
 
 func (c *BlankChrome) Render(content image.Image) (image.Image, error) {
-	width := content.Bounds().Dx()
-	height := content.Bounds().Dy()
+	content, width, height := contentOrBlank(c, content)
 
 	// Create context for drawing
 	dc := gg.NewContext(width, height)
 
 	// Draw the base window with rounded corners
-	fmt.Printf("Blank chrome: width=%d, height=%d, cornerRadius=%f\n", width, height, c.cornerRadius)
 	if err := DrawWindowBase(dc, width, height, c.cornerRadius,
 		c.theme.Properties.ContentBackground,
 		c.theme.Properties.ContentBackground,

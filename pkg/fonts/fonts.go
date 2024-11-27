@@ -238,6 +238,17 @@ func (f *Font) GetMaxWidth() (fixed.Int26_6, error) {
 	return f.maxWidth, nil
 }
 
+// MeasureString returns the width of a string in pixels
+func (f *Font) MeasureString(s string, size float64, style *FontStyle) (fixed.Int26_6, error) {
+	face, err := f.GetFace(size, style)
+	if err != nil {
+		return 0, err
+	}
+	defer face.Close()
+
+	return font.MeasureString(face.Face, s), nil
+}
+
 // GetMonoFace returns a font face that will render with fixed-width characters
 // size is the desired font size in points
 // cellWidth is the desired cell width in pixels (if 0, uses the font's natural maximum width)

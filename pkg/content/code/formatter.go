@@ -1,4 +1,4 @@
-package syntax
+package code
 
 import (
 	"fmt"
@@ -9,12 +9,6 @@ import (
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
-
-// Style represents a syntax highlighting style
-type Style struct {
-	Name  string
-	Style *chroma.Style
-}
 
 // Token represents a syntax highlighted token with its style information
 type Token struct {
@@ -32,38 +26,12 @@ type Line struct {
 
 // HighlightedCode represents syntax highlighted code ready for rendering
 type HighlightedCode struct {
-	Lines           []Line      // The lines of code with their tokens
-	BackgroundColor color.Color // Background color for the code block
-	GutterColor     color.Color // Color for the gutter (line numbers background)
-	LineNumberColor color.Color // Color for line numbers
-	HighlightColor  color.Color // Color for highlighted lines
-
-	HighlightedLines []int // Lines that should be highlighted
-}
-
-// HighlightOptions contains options for syntax highlighting
-type HighlightOptions struct {
-	Style            string // Name of the chroma style to use
-	Language         string // Optional: Language to use for highlighting (e.g., "go", "python")
-	TabWidth         int    // Number of spaces per tab
-	ShowLineNums     bool   // Whether to show line numbers
-	HighlightedLines []int  // Lines that should be highlighted
-	ShowPrompt       bool   // Whether to show a terminal prompt
-	PromptCommand    string // The command to show in the prompt
-	UseANSI          bool   // If true, parse ANSI escape sequences instead of using Chroma
-}
-
-// DefaultOptions returns the default highlight options
-func DefaultOptions() *HighlightOptions {
-	return &HighlightOptions{
-		Style:            "dracula",
-		Language:         "", // Empty means auto-detect
-		TabWidth:         4,
-		ShowLineNums:     true,
-		HighlightedLines: []int{},
-		ShowPrompt:       false,
-		PromptCommand:    "",
-	}
+	Lines            []Line      // The lines of code with their tokens
+	BackgroundColor  color.Color // Background color for the code block
+	GutterColor      color.Color // Color for the gutter (line numbers background)
+	LineNumberColor  color.Color // Color for line numbers
+	HighlightColor   color.Color // Color for highlighted lines
+	HighlightedLines []int       // Lines that should be highlighted
 }
 
 // GetAvailableStyles returns a list of all available syntax highlighting styles
@@ -106,17 +74,12 @@ func GetLanguageByAlias(alias string) string {
 }
 
 // Highlight performs syntax highlighting on the given code
-func Highlight(code string, opts *HighlightOptions) (*HighlightedCode, error) {
+func Highlight(code string, opts *CodeStyle) (*HighlightedCode, error) {
 	if opts == nil {
-		opts = DefaultOptions()
+		return nil, fmt.Errorf("no options provided")
 	}
 
-	// If ANSI mode is enabled, use ANSI parser
-	if opts.UseANSI {
-		return ParseANSI(code, opts)
-	}
-
-	// Otherwise use Chroma for syntax highlighting
+	// Use Chroma for syntax highlighting
 	var lexer chroma.Lexer
 	if opts.Language != "" {
 		lexer = lexers.Get(opts.Language)
@@ -131,28 +94,42 @@ func Highlight(code string, opts *HighlightOptions) (*HighlightedCode, error) {
 	}
 
 	// Get the style
-	style := styles.Get(opts.Style)
+	style := styles.Get(opts.Theme)
 	if style == nil {
 		style = styles.Fallback
 	}
 
 	// Create a custom formatter
+	backgroundColor := getBackgroundColor(style)
+	gutterColor := getGutterColor(style)
+	lineNumberColor := getLineNumberColor(style)
+	highlightColor := getHighlightColor(style)
+
 	formatter := &customFormatter{
-		tabWidth:         opts.TabWidth,
 		highlightedLines: make(map[int]bool),
+		tabWidth:         opts.TabWidth,
 		Result: &HighlightedCode{
-			BackgroundColor:  getBackgroundColor(style),
-			GutterColor:      getGutterColor(style),
-			LineNumberColor:  getLineNumberColor(style),
-			HighlightColor:   getHighlightColor(style),
-			HighlightedLines: opts.HighlightedLines,
+			BackgroundColor: backgroundColor,
+			GutterColor:     gutterColor,
+			LineNumberColor: lineNumberColor,
+			HighlightColor:  highlightColor,
 		},
 	}
 
 	// Set up highlighted lines
-	if opts.HighlightedLines != nil {
-		for _, line := range opts.HighlightedLines {
-			formatter.highlightedLines[line] = true
+	if len(opts.LineHighlightRanges) > 0 {
+		ranges := opts.LineHighlightRanges
+		fmt.Printf("Setting up line highlights with ranges: %+v\n", ranges)
+		for _, rangePair := range ranges {
+			// Convert 1-based line numbers to 0-based for internal use
+			start := rangePair.Start - 1
+			end := rangePair.End - 1
+			fmt.Printf("Processing range: start=%d, end=%d (1-based: %d, %d)\n", start, end, rangePair.Start, rangePair.End)
+			for i := start; i <= end; i++ {
+				formatter.highlightedLines[i] = true
+				formatter.Result.HighlightedLines = append(formatter.Result.HighlightedLines, i+1)
+				fmt.Printf("Highlighting line %d (1-based: %d)\n", i, i+1)
+			}
 		}
 	}
 
@@ -201,28 +178,6 @@ type customFormatter struct {
 	currentColumn    int // Track current column position for tab expansion
 }
 
-func expandTabs(text string, currentColumn, tabWidth int) (string, int) {
-	if !strings.Contains(text, "\t") {
-		return text, currentColumn + len(text)
-	}
-
-	var result strings.Builder
-	col := currentColumn
-
-	for _, ch := range text {
-		if ch == '\t' {
-			spaces := tabWidth - (col % tabWidth)
-			result.WriteString(strings.Repeat(" ", spaces))
-			col += spaces
-		} else {
-			result.WriteRune(ch)
-			col++
-		}
-	}
-
-	return result.String(), col
-}
-
 func (f *customFormatter) createToken(text string, tokenType chroma.TokenType, style *chroma.Style) Token {
 	entry := style.Get(tokenType)
 	return Token{
@@ -235,6 +190,7 @@ func (f *customFormatter) createToken(text string, tokenType chroma.TokenType, s
 
 func (f *customFormatter) addLine(line Line) {
 	line.Highlight = f.highlightedLines[f.lineNumber]
+	fmt.Printf("Adding line %d, highlight=%v\n", f.lineNumber, line.Highlight)
 	f.Result.Lines = append(f.Result.Lines, line)
 	f.lineNumber++
 	f.currentColumn = 0 // Reset column position for new line
@@ -335,90 +291,4 @@ func (f *customFormatter) Format(tokens []chroma.Token, style *chroma.Style) err
 	}
 
 	return nil
-}
-
-func getBackgroundColor(style *chroma.Style) color.Color {
-	bgColor := style.Get(chroma.Background)
-	return color.RGBA{
-		R: bgColor.Background.Red(),
-		G: bgColor.Background.Green(),
-		B: bgColor.Background.Blue(),
-		A: 255,
-	}
-}
-
-func getGutterColor(style *chroma.Style) color.Color {
-	lineTableColor := style.Get(chroma.LineTable)
-	return color.RGBA{
-		R: lineTableColor.Background.Red(),
-		G: lineTableColor.Background.Green(),
-		B: lineTableColor.Background.Blue(),
-		A: 255,
-	}
-}
-
-func getLineNumberColor(style *chroma.Style) color.Color {
-	lineNumColor := style.Get(chroma.LineNumbers)
-	return color.RGBA{
-		R: lineNumColor.Colour.Red(),
-		G: lineNumColor.Colour.Green(),
-		B: lineNumColor.Colour.Blue(),
-		A: 255,
-	}
-}
-
-func getHighlightColor(style *chroma.Style) color.Color {
-	// Use LineHighlight token type for line highlighting
-	highlightColor := style.Get(chroma.LineHighlight)
-
-	// If the style doesn't define LineHighlight, create a semi-transparent highlight
-	if highlightColor.Background == 0 && highlightColor.Colour == 0 {
-		baseColor := style.Get(chroma.Background)
-		// Make the highlight slightly lighter/darker than the background
-		if isLight(baseColor.Background) {
-			return color.NRGBA{R: 0, G: 0, B: 0, A: 128} // More transparent (darker)
-		} else {
-			return color.NRGBA{R: 255, G: 255, B: 255, A: 128} // More transparent (lighter)
-		}
-	}
-
-	// Use the style's LineHighlight color
-	if highlightColor.Background != 0 {
-		return color.NRGBA{
-			R: highlightColor.Background.Red(),
-			G: highlightColor.Background.Green(),
-			B: highlightColor.Background.Blue(),
-			A: 128, // Semi-transparent (adjust this value between 0-255 to control opacity)
-		}
-	}
-
-	// Fallback to foreground color if background is not set
-	return color.NRGBA{
-		R: highlightColor.Colour.Red(),
-		G: highlightColor.Colour.Green(),
-		B: highlightColor.Colour.Blue(),
-		A: 128, // Semi-transparent (adjust this value between 0-255 to control opacity)
-	}
-}
-
-func isLight(c chroma.Colour) bool {
-	// Convert RGB values to 0-255 range
-	r := float64(c.Red())
-	g := float64(c.Green())
-	b := float64(c.Blue())
-
-	// Calculate perceived brightness (ITU-R BT.709)
-	brightness := (r*0.299 + g*0.587 + b*0.114)
-
-	// Consider the color light if brightness is greater than 128 (half of 255)
-	return brightness > 128
-}
-
-func getColorFromChroma(c chroma.Colour) color.Color {
-	return color.RGBA{
-		R: c.Red(),
-		G: c.Green(),
-		B: c.Blue(),
-		A: 255,
-	}
 }

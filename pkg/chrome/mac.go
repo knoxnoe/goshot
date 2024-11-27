@@ -208,7 +208,7 @@ func NewMacChrome(style MacStyle, opts ...ChromeOption) *MacChrome {
 	return chrome
 }
 
-func (c *MacChrome) SetTheme(theme Theme) Chrome {
+func (c *MacChrome) WithTheme(theme Theme) Chrome {
 	c.theme = theme
 	c.themeName = theme.Name
 	c.variant = theme.Variant
@@ -218,7 +218,7 @@ func (c *MacChrome) SetTheme(theme Theme) Chrome {
 	return c
 }
 
-func (c *MacChrome) SetThemeByName(name string, variant ThemeVariant) Chrome {
+func (c *MacChrome) WithThemeByName(name string, variant ThemeVariant) Chrome {
 	if theme, ok := DefaultRegistry.GetTheme(ThemeTypeMac, name, variant); ok {
 		c.themeName = name
 		c.variant = variant
@@ -238,33 +238,32 @@ func (c *MacChrome) GetCurrentVariant() ThemeVariant {
 	return c.variant
 }
 
-func (c *MacChrome) SetVariant(variant ThemeVariant) Chrome {
-	return c.SetThemeByName(c.themeName, variant)
+func (c *MacChrome) WithVariant(variant ThemeVariant) Chrome {
+	return c.WithThemeByName(c.themeName, variant)
 }
 
 func (c *MacChrome) CurrentTheme() Theme {
 	return c.theme
 }
 
-func (c *MacChrome) SetTitle(title string) Chrome {
+func (c *MacChrome) WithTitle(title string) Chrome {
 	c.title = title
 	return c
 }
 
-func (c *MacChrome) SetCornerRadius(radius float64) Chrome {
+func (c *MacChrome) WithCornerRadius(radius float64) Chrome {
 	c.cornerRadius = radius
 	return c
 }
 
-func (c *MacChrome) SetTitleBar(enabled bool) Chrome {
+func (c *MacChrome) WithTitleBar(enabled bool) Chrome {
 	c.titleBar = enabled
 	return c
 }
 
 // Render implements the Chrome interface
 func (c *MacChrome) Render(content image.Image) (image.Image, error) {
-	width := content.Bounds().Dx()
-	height := content.Bounds().Dy()
+	content, width, height := contentOrBlank(c, content)
 	titleBarHeight := macDefaultTitleBarHeight
 
 	if !c.titleBar {

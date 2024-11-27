@@ -1,14 +1,20 @@
 package render
 
 import (
-	"image"
 	"image/jpeg"
 	"image/png"
 	"os"
+
+	"golang.org/x/image/bmp"
 )
 
 // SaveAsPNG saves an image to a file in PNG format
-func SaveAsPNG(img image.Image, filename string) error {
+func (c *Canvas) SaveAsPNG(filename string) error {
+	img, err := c.RenderToImage()
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -19,7 +25,12 @@ func SaveAsPNG(img image.Image, filename string) error {
 }
 
 // SaveAsJPEG saves an image to a file in JPEG format
-func SaveAsJPEG(img image.Image, filename string) error {
+func (c *Canvas) SaveAsJPEG(filename string) error {
+	img, err := c.RenderToImage()
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
@@ -30,12 +41,23 @@ func SaveAsJPEG(img image.Image, filename string) error {
 }
 
 // SaveAsBMP saves an image to a file in BMP format
-func SaveAsBMP(img image.Image, filename string) error {
+func (c *Canvas) SaveAsBMP(filename string) error {
+	img, err := c.RenderToImage()
+	if err != nil {
+		return err
+	}
+
 	f, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
+	return bmp.Encode(f, img)
+}
+
+// SaveAsSVG saves an image to a file in SVG format
+func (c *Canvas) SaveAsSVG(filename string) error {
+	// TODO
 	return nil
 }

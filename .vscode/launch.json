@@ -10,8 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/goshot",
-            "args": ["--execute", "fastfetch"]
+            "program": "${workspaceFolder}/cmd/examples/01_basic",
+            // "args": ["--execute", "fastfetch"]
         }
     ]
 }

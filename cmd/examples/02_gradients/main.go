@@ -29,14 +29,14 @@ func processItem(item string) error {
 		background.LinearGradient,
 		background.GradientStop{Color: color.RGBA{R: 30, G: 30, B: 30, A: 255}, Position: 0},
 		background.GradientStop{Color: color.RGBA{R: 60, G: 60, B: 60, A: 255}, Position: 1},
-	).SetAngle(45).SetPadding(40)
+	).WithAngle(45).WithPadding(40)
 
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacChrome(
+		WithChrome(chrome.NewMacChrome(
 			chrome.MacStyleSequoia,
 			chrome.WithTitle("Gradient Example"))).
-		SetBackground(bg).
-		SetCodeStyle(&render.CodeStyle{
+		WithBackground(bg).
+		WithCodeStyle(&render.CodeStyle{
 			Language:        "go",
 			Theme:           "dracula",
 			TabWidth:        4,

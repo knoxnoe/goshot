@@ -55,16 +55,16 @@ type Theme struct {
 
 // Chrome defines the interface for window chrome implementations
 type Chrome interface {
-	SetTitle(title string) Chrome
-	SetCornerRadius(radius float64) Chrome
-	SetTitleBar(enabled bool) Chrome
-	SetTheme(theme Theme) Chrome
-	SetThemeByName(name string, variant ThemeVariant) Chrome
-	SetVariant(variant ThemeVariant) Chrome
+	Render(content image.Image) (image.Image, error)
+	WithTitle(title string) Chrome
+	WithCornerRadius(radius float64) Chrome
+	WithTitleBar(enabled bool) Chrome
+	WithTheme(theme Theme) Chrome
+	WithThemeByName(name string, variant ThemeVariant) Chrome
+	WithVariant(variant ThemeVariant) Chrome
 	GetCurrentThemeName() string
 	GetCurrentVariant() ThemeVariant
 	CurrentTheme() Theme
-	Render(content image.Image) (image.Image, error)
 	MinimumSize() (width, height int)
 	ContentInsets() (top, right, bottom, left int)
 }
@@ -75,42 +75,42 @@ type ChromeOption func(Chrome) Chrome
 // WithTitle sets the window title
 func WithTitle(title string) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetTitle(title)
+		return c.WithTitle(title)
 	}
 }
 
 // WithCornerRadius sets the corner radius
 func WithCornerRadius(radius float64) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetCornerRadius(radius)
+		return c.WithCornerRadius(radius)
 	}
 }
 
 // WithTitleBar enables or disables the title bar
 func WithTitleBar(enabled bool) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetTitleBar(enabled)
+		return c.WithTitleBar(enabled)
 	}
 }
 
 // WithTheme sets the theme
 func WithTheme(theme Theme) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetTheme(theme)
+		return c.WithTheme(theme)
 	}
 }
 
 // WithThemeByName sets the theme by name and variant
 func WithThemeByName(name string, variant ThemeVariant) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetThemeByName(name, variant)
+		return c.WithThemeByName(name, variant)
 	}
 }
 
 // WithVariant sets the theme variant
 func WithVariant(variant ThemeVariant) ChromeOption {
 	return func(c Chrome) Chrome {
-		return c.SetVariant(variant)
+		return c.WithVariant(variant)
 	}
 }
 

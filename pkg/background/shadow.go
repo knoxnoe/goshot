@@ -9,20 +9,20 @@ import (
 
 // Shadow represents a shadow configuration that can be applied to a background
 type Shadow interface {
-	// SetOffset sets the X and Y offset of the shadow
-	SetOffset(x, y float64) Shadow
+	// WithOffset sets the X and Y offset of the shadow
+	WithOffset(x, y float64) Shadow
 
-	// SetBlur sets the blur radius of the shadow
-	SetBlur(radius float64) Shadow
+	// WithBlur sets the blur radius of the shadow
+	WithBlur(radius float64) Shadow
 
-	// SetSpread sets the spread radius of the shadow
-	SetSpread(radius float64) Shadow
+	// WithSpread sets the spread radius of the shadow
+	WithSpread(radius float64) Shadow
 
-	// SetColor sets the color of the shadow
-	SetColor(c color.Color) Shadow
+	// WithColor sets the color of the shadow
+	WithColor(c color.Color) Shadow
 
-	// SetCornerRadius sets the corner radius of the shadow
-	SetCornerRadius(radius float64) Shadow
+	// WithCornerRadius sets the corner radius of the shadow
+	WithCornerRadius(radius float64) Shadow
 
 	// Apply applies the shadow effect to the given image
 	Apply(img image.Image) image.Image
@@ -50,28 +50,28 @@ func NewShadow() Shadow {
 	}
 }
 
-func (s *shadowImpl) SetOffset(x, y float64) Shadow {
+func (s *shadowImpl) WithOffset(x, y float64) Shadow {
 	s.offsetX = x
 	s.offsetY = y
 	return s
 }
 
-func (s *shadowImpl) SetBlur(radius float64) Shadow {
+func (s *shadowImpl) WithBlur(radius float64) Shadow {
 	s.blur = radius
 	return s
 }
 
-func (s *shadowImpl) SetSpread(radius float64) Shadow {
+func (s *shadowImpl) WithSpread(radius float64) Shadow {
 	s.spread = radius
 	return s
 }
 
-func (s *shadowImpl) SetColor(c color.Color) Shadow {
+func (s *shadowImpl) WithColor(c color.Color) Shadow {
 	s.color = c
 	return s
 }
 
-func (s *shadowImpl) SetCornerRadius(radius float64) Shadow {
+func (s *shadowImpl) WithCornerRadius(radius float64) Shadow {
 	s.cornerRadius = radius
 	return s
 }

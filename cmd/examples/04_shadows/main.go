@@ -17,23 +17,23 @@ func main() {
 
 	// Create a canvas with a shadow
 	canvas := render.NewCanvas().
-		SetChrome(chrome.NewMacChrome(
+		WithChrome(chrome.NewMacChrome(
 			chrome.MacStyleSequoia,
 			chrome.WithTitle("Shadow Example"))).
-		SetBackground(
+		WithBackground(
 			background.NewColorBackground().
-				SetColor(color.RGBA{R: 40, G: 42, B: 54, A: 255}).
-				SetPadding(30).
-				SetCornerRadius(8).
-				SetShadow(
+				WithColor(color.RGBA{R: 40, G: 42, B: 54, A: 255}).
+				WithPadding(30).
+				WithCornerRadius(8).
+				WithShadow(
 					background.NewShadow().
-						SetOffset(0, 0).                                // Slightly downward offset
-						SetBlur(30).                                    // Large blur for softness
-						SetSpread(10).                                  // Large spread for more presence
-						SetColor(color.RGBA{R: 0, G: 0, B: 0, A: 120}), // Slightly opaque
+						WithOffset(0, 0).                                // Slightly downward offset
+						WithBlur(30).                                    // Large blur for softness
+						WithSpread(10).                                  // Large spread for more presence
+						WithColor(color.RGBA{R: 0, G: 0, B: 0, A: 120}), // Slightly opaque
 				),
 		).
-		SetCodeStyle(&render.CodeStyle{
+		WithCodeStyle(&render.CodeStyle{
 			Language:        "go",
 			Theme:           "dracula",
 			TabWidth:        4,

@@ -141,7 +141,7 @@ func NewWindowsChrome(style WindowsStyle, opts ...ChromeOption) *WindowsChrome {
 	return chrome
 }
 
-func (c *WindowsChrome) SetTheme(theme Theme) Chrome {
+func (c *WindowsChrome) WithTheme(theme Theme) Chrome {
 	c.theme = theme
 	c.themeName = theme.Name
 	c.variant = theme.Variant
@@ -151,7 +151,7 @@ func (c *WindowsChrome) SetTheme(theme Theme) Chrome {
 	return c
 }
 
-func (c *WindowsChrome) SetThemeByName(name string, variant ThemeVariant) Chrome {
+func (c *WindowsChrome) WithThemeByName(name string, variant ThemeVariant) Chrome {
 	if theme, ok := DefaultRegistry.GetTheme(ThemeTypeWindows, name, variant); ok {
 		c.themeName = name
 		c.variant = variant
@@ -171,33 +171,32 @@ func (c *WindowsChrome) GetCurrentVariant() ThemeVariant {
 	return c.variant
 }
 
-func (c *WindowsChrome) SetVariant(variant ThemeVariant) Chrome {
-	return c.SetThemeByName(c.themeName, variant)
+func (c *WindowsChrome) WithVariant(variant ThemeVariant) Chrome {
+	return c.WithThemeByName(c.themeName, variant)
 }
 
 func (c *WindowsChrome) CurrentTheme() Theme {
 	return c.theme
 }
 
-func (c *WindowsChrome) SetTitle(title string) Chrome {
+func (c *WindowsChrome) WithTitle(title string) Chrome {
 	c.title = title
 	return c
 }
 
-func (c *WindowsChrome) SetCornerRadius(radius float64) Chrome {
+func (c *WindowsChrome) WithCornerRadius(radius float64) Chrome {
 	c.cornerRadius = radius
 	return c
 }
 
-func (c *WindowsChrome) SetTitleBar(enabled bool) Chrome {
+func (c *WindowsChrome) WithTitleBar(enabled bool) Chrome {
 	c.titleBar = enabled
 	return c
 }
 
 // Render implements the Chrome interface
 func (c *WindowsChrome) Render(content image.Image) (image.Image, error) {
-	width := content.Bounds().Dx()
-	height := content.Bounds().Dy()
+	content, width, height := contentOrBlank(c, content)
 	titleBarHeight := c.titleBarHeight()
 
 	// Create context for drawing

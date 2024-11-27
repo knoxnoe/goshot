@@ -2,6 +2,7 @@ package chrome
 
 import (
 	"fmt"
+	"image"
 	"image/color"
 	"log"
 
@@ -151,4 +152,18 @@ func DrawLine(dc *gg.Context, x, y, size float64, color color.Color) {
 	dc.MoveTo(x, y)
 	dc.LineTo(x+size, y)
 	dc.Stroke()
+}
+
+func contentOrBlank(chrome Chrome, content image.Image) (image.Image, int, int) {
+	var width, height int
+
+	if content == nil {
+		width, height = chrome.MinimumSize()
+		content = image.NewRGBA(image.Rect(0, 0, width, height))
+	} else {
+		width = content.Bounds().Dx()
+		height = content.Bounds().Dy()
+	}
+
+	return content, width, height
 }

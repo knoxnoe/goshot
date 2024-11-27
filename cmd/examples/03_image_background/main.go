@@ -35,20 +35,20 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 
 	// Create an image background
 	bg := background.NewImageBackground(img).
-		SetScaleMode(background.ImageScaleTile).
-		SetBlurRadius(0.5).
-		SetOpacity(1.0).
-		SetPadding(40).
-		SetCornerRadius(10)
+		WithScaleMode(background.ImageScaleTile).
+		WithBlurRadius(0.5).
+		WithOpacity(1.0).
+		WithPadding(40).
+		WithCornerRadius(10)
 
 	canvas := render.NewCanvas().
-		SetChrome(
+		WithChrome(
 			chrome.NewMacChrome(
 				chrome.MacStyleSequoia,
 				chrome.WithTitle("Image Background Example"),
 			)).
-		SetBackground(bg).
-		SetCodeStyle(&render.CodeStyle{
+		WithBackground(bg).
+		WithCodeStyle(&render.CodeStyle{
 			Language:        "go",
 			Theme:           "dracula",
 			TabWidth:        4,
