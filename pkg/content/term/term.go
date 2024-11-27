@@ -30,6 +30,7 @@ type TermStyle struct {
 	Width         int         // Terminal width in cells
 	Height        int         // Terminal height in cells
 	AutoSize      bool        // Whether to automatically size the output to the content
+	CellSpacing   int         // Additional horizontal spacing between cells
 }
 
 type TermRenderer struct {
@@ -93,6 +94,7 @@ func DefaultRenderer(input []byte) *TermRenderer {
 		PaddingBottom: 20,
 		Width:         0,
 		Height:        0,
+		CellSpacing:   1,
 	})
 }
 
@@ -104,6 +106,14 @@ func (r *TermRenderer) WithTheme(theme string) *TermRenderer {
 func (r *TermRenderer) WithFont(font *fonts.Font) *TermRenderer {
 	r.Style.Font = font
 	return r
+}
+
+func (r *TermRenderer) WithFontName(name string, style *fonts.FontStyle) *TermRenderer {
+	font, err := fonts.GetFont(name, style)
+	if err != nil {
+		panic(err)
+	}
+	return r.WithFont(font)
 }
 
 func (r *TermRenderer) WithFontSize(size float64) *TermRenderer {
@@ -562,7 +572,7 @@ func (r *TermRenderer) Render() (image.Image, error) {
 
 	// Create the image
 	bounds := image.Rect(0, 0,
-		width*int(r.Style.FontSize)+r.Style.PaddingLeft+r.Style.PaddingRight,
+		width*int(r.Style.FontSize)+r.Style.PaddingLeft+r.Style.PaddingRight+width*r.Style.CellSpacing,
 		height*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop+r.Style.PaddingBottom)
 	img := image.NewRGBA(bounds)
 
@@ -579,6 +589,10 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	}
 	defer face.Close()
 
+	// Measure the character width using the font metrics
+	charWidthI26, _ := face.Face.GlyphAdvance('M')
+	charWidth := charWidthI26.Round() // Convert to int
+
 	// Draw cells
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -594,17 +608,17 @@ func (r *TermRenderer) Render() (image.Image, error) {
 			// Draw background if different from default
 			if cell.BgColor != term.DefaultBg {
 				cellRect := image.Rect(
-					x*int(r.Style.FontSize)+r.Style.PaddingLeft,
+					x*charWidth+r.Style.PaddingLeft+r.Style.CellSpacing*x,
 					y*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop,
-					(x+1)*int(r.Style.FontSize)+r.Style.PaddingLeft,
+					(x+1)*charWidth+r.Style.PaddingLeft+r.Style.CellSpacing*x,
 					(y+1)*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop,
 				)
 				draw.Draw(img, cellRect, &image.Uniform{cell.BgColor}, image.Point{}, draw.Src)
 			}
 
-			// Draw text
+			// Draw the character
 			point := fixed.Point26_6{
-				X: fixed.Int26_6(x*int(r.Style.FontSize)+r.Style.PaddingLeft) << 6,
+				X: fixed.Int26_6(x*charWidth+r.Style.PaddingLeft+r.Style.CellSpacing*x) << 6,
 				Y: fixed.Int26_6(y*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop+int(r.Style.FontSize)) << 6,
 			}
 			d := &font.Drawer{
@@ -669,7 +683,7 @@ func ansiBrightColor(code int, style *TermStyle) color.Color {
 	if chromaStyle == nil {
 		chromaStyle = styles.Fallback
 	}
-	
+
 	// Map to chroma theme colors with increased brightness
 	baseColor := ansiColor(code, style)
 	if rgba, ok := baseColor.(color.RGBA); ok {
@@ -681,7 +695,7 @@ func ansiBrightColor(code int, style *TermStyle) color.Color {
 			A: rgba.A,
 		}
 	}
-	
+
 	// Fallback to standard bright colors
 	return color.RGBA{
 		R: []uint8{127, 255, 0, 255, 0, 255, 0, 255}[code],
