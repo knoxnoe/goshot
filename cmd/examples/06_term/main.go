@@ -34,8 +34,8 @@ func main() {
 		WithContent(content_term.DefaultRenderer(out).
 			WithTheme("dracula").
 			// Set initial size, but the actual output will be cropped to content
-			WithWidth(120).
-			WithHeight(40).
+			WithWidth(300).
+			WithHeight(300).
 			// Only render the area that's actually used
 			WithAutoSize(),
 		)
