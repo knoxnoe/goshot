@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/watzon/goshot/pkg/content/code"
+	"github.com/watzon/goshot/pkg/content/term"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/version"
 	"golang.org/x/text/cases"
@@ -203,12 +204,8 @@ func main() {
 				os.Exit(1)
 			}
 
-			code := string(input)
-			// if err := renderTerminalOutput(&config, false, code); err != nil {
-			// 	fmt.Println(styles.error.Render(err.Error()))
-			// 	os.Exit(1)
-			// }
-			fmt.Print(code)
+			renderer := term.DefaultRenderer(input)
+			renderer.Render()
 		},
 	}
 

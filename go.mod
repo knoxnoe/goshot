@@ -7,6 +7,7 @@ toolchain go1.23.3
 require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/lipgloss v1.0.0
+	github.com/charmbracelet/x/ansi v0.5.2
 	github.com/disintegration/imaging v1.6.2
 	github.com/spf13/pflag v1.0.5
 	golang.org/x/term v0.21.0
@@ -15,7 +16,6 @@ require (
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/conpty v0.1.0 // indirect
 	github.com/charmbracelet/x/errors v0.0.0-20240508181413-e8d8b6e2de86 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
