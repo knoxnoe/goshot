@@ -68,6 +68,7 @@ type Terminal struct {
 	MaxY      int           // For dynamic sizing
 	DefaultFg color.Color
 	DefaultBg color.Color
+	AutoSize  bool // Whether to automatically size the terminal
 }
 
 func NewRenderer(input []byte, style *TermStyle) *TermRenderer {
@@ -199,19 +200,28 @@ func (t *Terminal) SetCell(x, y int, ch rune) {
 		return
 	}
 
-	// Ensure we have enough rows
-	for len(t.Cells) <= y {
-		if t.Height > 0 && y >= t.Height {
+	// If auto-sizing is enabled, track the maximum dimensions regardless of Width/Height
+	if t.AutoSize {
+		t.MaxX = max(t.MaxX, x+1)
+		t.MaxY = max(t.MaxY, y+1)
+		// Only return if we're not auto-sizing
+		if (t.Width > 0 && x >= t.Width) || (t.Height > 0 && y >= t.Height) {
 			return
 		}
+	} else {
+		// If not auto-sizing, respect the terminal boundaries
+		if (t.Width > 0 && x >= t.Width) || (t.Height > 0 && y >= t.Height) {
+			return
+		}
+	}
+
+	// Ensure we have enough rows
+	for len(t.Cells) <= y {
 		t.Cells = append(t.Cells, make([]Cell, max(t.Width, x+1)))
 	}
 
 	// Ensure the row has enough columns
 	if len(t.Cells[y]) <= x {
-		if t.Width > 0 && x >= t.Width {
-			return
-		}
 		newRow := make([]Cell, max(t.Width, x+1))
 		copy(newRow, t.Cells[y])
 		t.Cells[y] = newRow
@@ -223,9 +233,6 @@ func (t *Terminal) SetCell(x, y int, ch rune) {
 		BgColor: t.CurrBg,
 		Attrs:   t.CurrAttrs,
 	}
-
-	t.MaxX = max(t.MaxX, x+1)
-	t.MaxY = max(t.MaxY, y+1)
 }
 
 func (t *Terminal) NewLine() {
@@ -247,38 +254,35 @@ func (t *Terminal) NewLine() {
 }
 
 func NewTerminal(style *TermStyle) *Terminal {
-	// Get theme colors from chroma
+	// Get the chroma style
 	chromaStyle := styles.Get(style.Theme)
 	if chromaStyle == nil {
 		chromaStyle = styles.Fallback
 	}
 
-	// Get default colors from the theme
-	defaultBg := chromaStyle.Get(chroma.Background).Background
-	defaultFg := chromaStyle.Get(chroma.Text).Colour
+	// If the style has a default foreground color, use it
+	fg := chromaStyle.Get(chroma.Text).Colour
+	defaultFg := chromaColorToRGBA(fg)
 
-	term := &Terminal{
-		Style: chromaStyle,
-		DefaultFg: color.RGBA{
-			R: defaultFg.Red(),
-			G: defaultFg.Green(),
-			B: defaultFg.Blue(),
-			A: 255,
-		},
-		DefaultBg: color.RGBA{
-			R: defaultBg.Red(),
-			G: defaultBg.Green(),
-			B: defaultBg.Blue(),
-			A: 255,
-		},
+	// If the style has a default background color, use it
+	bg := chromaStyle.Get(chroma.Background).Background
+	defaultBg := chromaColorToRGBA(bg)
+
+	t := &Terminal{
+		Width:     style.Width,
+		Height:    style.Height,
+		Style:     chromaStyle,
+		DefaultFg: defaultFg,
+		DefaultBg: defaultBg,
+		AutoSize:  style.AutoSize,
 	}
 
 	if style.Width > 0 && style.Height > 0 {
-		term.Resize(style.Width, style.Height)
+		t.Resize(style.Width, style.Height)
 	}
 
-	term.Reset()
-	return term
+	t.Reset()
+	return t
 }
 
 func getPrefix(seq []byte) string {
@@ -444,18 +448,21 @@ func (r *TermRenderer) Render() (image.Image, error) {
 					} else if strings.HasSuffix(s, "H") || strings.HasSuffix(s, "f") {
 						// Cursor position
 						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "H")
+						fmt.Printf("Raw cursor position command: %q with params: %q\n", s, params)
 						if params == "" {
 							term.CursorX = 0
 							term.CursorY = 0
 							fmt.Printf("Reset cursor position to (0,0)\n")
 						} else {
 							parts := strings.Split(params, ";")
+							fmt.Printf("Cursor position parts: %v\n", parts)
 							if len(parts) == 2 {
 								row, _ := strconv.Atoi(parts[0])
 								col, _ := strconv.Atoi(parts[1])
 								term.CursorY = max(0, row-1)
 								term.CursorX = max(0, col-1)
-								fmt.Printf("Set cursor position to (%d,%d)\n", term.CursorX, term.CursorY)
+								fmt.Printf("Set cursor position to (%d,%d) from row=%d, col=%d\n", 
+									term.CursorX, term.CursorY, row, col)
 							}
 						}
 					} else if strings.HasSuffix(s, "A") {
@@ -570,15 +577,6 @@ func (r *TermRenderer) Render() (image.Image, error) {
 		height = term.MaxY
 	}
 
-	// Create the image
-	bounds := image.Rect(0, 0,
-		width*int(r.Style.FontSize)+r.Style.PaddingLeft+r.Style.PaddingRight+width*r.Style.CellSpacing,
-		height*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop+r.Style.PaddingBottom)
-	img := image.NewRGBA(bounds)
-
-	// Fill background
-	draw.Draw(img, img.Bounds(), &image.Uniform{term.DefaultBg}, image.Point{}, draw.Src)
-
 	// Create font face
 	face, err := r.Style.Font.GetFace(r.Style.FontSize, &fonts.FontStyle{
 		Weight:  fonts.WeightRegular,
@@ -592,6 +590,15 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	// Measure the character width using the font metrics
 	charWidthI26, _ := face.Face.GlyphAdvance('M')
 	charWidth := charWidthI26.Round() // Convert to int
+
+	// Create the image with correct dimensions based on character width
+	bounds := image.Rect(0, 0,
+		width*charWidth+r.Style.PaddingLeft+r.Style.PaddingRight+width*r.Style.CellSpacing,
+		height*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop+r.Style.PaddingBottom)
+	img := image.NewRGBA(bounds)
+
+	// Fill background
+	draw.Draw(img, img.Bounds(), &image.Uniform{term.DefaultBg}, image.Point{}, draw.Src)
 
 	// Draw cells
 	for y := 0; y < height; y++ {

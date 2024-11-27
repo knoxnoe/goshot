@@ -37,7 +37,8 @@ func main() {
 			WithWidth(120).
 			WithHeight(40).
 			// Only render the area that's actually used
-			WithAutoSize())
+			WithAutoSize(),
+		)
 
 	os.MkdirAll("example_output", 0755)
 	err = canvas.SaveAsPNG("example_output/term.png")
