@@ -73,8 +73,6 @@ type Config struct {
 	ToClipboard   bool
 	FromClipboard bool
 	ToStdout      bool
-	ShowPrompt    bool
-	AutoTitle     bool
 
 	// Appearance
 	WindowChrome       string
@@ -83,7 +81,6 @@ type Config struct {
 	Theme              string
 	Language           string
 	Font               string
-	FontSize           float64
 	LineHeight         float64
 	BackgroundColor    string
 	BackgroundImage    string
@@ -134,7 +131,9 @@ type Config struct {
 	CellPadRight  int
 	CellPadTop    int
 	CellPadBottom int
-	PromptLine    string
+	CellSpacing   int
+	ShowPrompt    bool
+	AutoTitle     bool
 }
 
 var config Config
@@ -212,16 +211,34 @@ var execCommand = &cobra.Command{
 			os.Exit(1)
 		}
 
-		renderer := term.DefaultRenderer(input)
-		renderer.Render()
+		if err := renderTerm(&config, true, args, input); err != nil {
+			fmt.Println(styles.error.Render("Failed to render image: " + err.Error()))
+			os.Exit(1)
+		}
 	},
 }
 
-var themesCmd = &cobra.Command{
+var rootThemesCmd = &cobra.Command{
 	Use:   "themes",
 	Short: "List available themes",
 	Run: func(cmd *cobra.Command, args []string) {
 		themes := code.GetAvailableStyles()
+		sort.Strings(themes)
+
+		fmt.Println(styles.subtitle.Render("Available Themes:"))
+		fmt.Println()
+
+		for _, theme := range themes {
+			fmt.Printf("  %s\n", styles.info.Render(theme))
+		}
+	},
+}
+
+var execThemesCmd = &cobra.Command{
+	Use:   "themes",
+	Short: "List available themes",
+	Run: func(cmd *cobra.Command, args []string) {
+		themes := term.ListThemes()
 		sort.Strings(themes)
 
 		fmt.Println(styles.subtitle.Render("Available Themes:"))
@@ -308,7 +325,6 @@ func makeOutputFlagSet() *pflag.FlagSet {
 	fs.BoolVar(&config.FromClipboard, "from-clipboard", false, "Read input from clipboard")
 	fs.BoolVarP(&config.ToStdout, "to-stdout", "s", false, "Write output to stdout")
 	fs.BoolVar(&config.ShowPrompt, "show-prompt", false, "Show the prompt used to generate the screenshot")
-	fs.BoolVar(&config.AutoTitle, "auto-title", false, "Automatically set the window title to the filename or command")
 	return fs
 }
 
@@ -339,8 +355,7 @@ func makeAppearanceFlagSet() *pflag.FlagSet {
 	fs.StringVarP(&config.ChromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
 	fs.BoolVarP(&config.DarkMode, "dark-mode", "d", false, "Use dark mode")
 	fs.StringVarP(&config.Theme, "theme", "t", "dracula", "Syntax highlight theme name")
-	fs.StringVarP(&config.Font, "font", "f", "JetBrainsMono", "Fallback font list (e.g., 'Hack; SimSun=31')")
-	fs.Float64Var(&config.FontSize, "font-size", 14.0, "Font size")
+	fs.StringVarP(&config.Font, "font", "f", "JetBrainsMonoNerdFont", "Fallback font list (e.g., 'Hack; SimSun=31')")
 	fs.Float64Var(&config.LineHeight, "line-height", 1.0, "Line height")
 	fs.StringVarP(&config.BackgroundColor, "background", "b", "#aaaaff", "Background color")
 	fs.StringVar(&config.BackgroundImage, "background-image", "", "Background image path")
@@ -390,18 +405,18 @@ func initRootConfig() {
 	layoutFlags.IntVar(&config.LinePadding, "line-pad", 2, "Padding between lines")
 	layoutFlags.IntVar(&config.PadHoriz, "pad-horiz", 80, "Horizontal padding")
 	layoutFlags.IntVar(&config.PadVert, "pad-vert", 100, "Vertical padding")
-	layoutFlags.IntVar(&config.CodePadTop, "code-pad-top", 10, "Code top padding")
-	layoutFlags.IntVar(&config.CodePadBottom, "code-pad-bottom", 10, "Code bottom padding")
-	layoutFlags.IntVar(&config.CodePadLeft, "code-pad-left", 10, "Code left padding")
-	layoutFlags.IntVar(&config.CodePadRight, "code-pad-right", 10, "Code right padding")
-	layoutFlags.IntVar(&config.LineNumberPadding, "line-number-pad", 10, "Line number padding")
+	layoutFlags.IntVar(&config.CodePadTop, "code-pad-top", 1, "Code top padding")
+	layoutFlags.IntVar(&config.CodePadBottom, "code-pad-bottom", 1, "Code bottom padding")
+	layoutFlags.IntVar(&config.CodePadLeft, "code-pad-left", 1, "Code left padding")
+	layoutFlags.IntVar(&config.CodePadRight, "code-pad-right", 1, "Code right padding")
+	layoutFlags.IntVar(&config.LineNumberPadding, "line-number-pad", 1, "Line number padding")
 	layoutFlags.IntVar(&config.MinWidth, "min-width", 0, "Minimum width")
 	layoutFlags.IntVar(&config.MaxWidth, "max-width", 0, "Maximum width")
 	rootCmd.Flags().AddFlagSet(layoutFlags)
 	rfg[layoutFlags] = "layout"
 
 	// Additional utility commands
-	rootCmd.AddCommand(execCommand, themesCmd, fontsCmd, languagesCmd, versionCmd)
+	rootCmd.AddCommand(execCommand, rootThemesCmd, fontsCmd, languagesCmd, versionCmd)
 
 	// Set usage function
 	setUsageFunc(rootCmd, rfg, "[flags] [file]")
@@ -423,6 +438,7 @@ func initExecConfig() {
 
 	// Output flags
 	outputFlags := makeOutputFlagSet()
+	outputFlags.BoolVar(&config.AutoTitle, "auto-title", false, "Automatically set the window title to the filename or command")
 	execCommand.Flags().AddFlagSet(outputFlags)
 	rfg[outputFlags] = "output"
 
@@ -433,15 +449,20 @@ func initExecConfig() {
 
 	// Layout flags
 	layoutFlags := makeLayoutFlagSet()
-	layoutFlags.IntVar(&config.CellWidth, "width", 120, "Terminal width in cells")
-	layoutFlags.IntVar(&config.CellHeight, "height", 40, "Terminal height in cells")
-	layoutFlags.BoolVar(&config.AutoSize, "auto-size", false, "Resize terminal to fit content (width and height must already be larger than content)")
+	layoutFlags.IntVarP(&config.CellWidth, "width", "w", 120, "Terminal width in cells")
+	layoutFlags.IntVarP(&config.CellHeight, "height", "H", 40, "Terminal height in cells")
+	layoutFlags.BoolVarP(&config.AutoSize, "auto-size", "A", false, "Resize terminal to fit content (width and height must already be larger than content)")
 	layoutFlags.IntVar(&config.CellPadLeft, "pad-left", 0, "Left padding in cells")
 	layoutFlags.IntVar(&config.CellPadRight, "pad-right", 0, "Right padding in cells")
 	layoutFlags.IntVar(&config.CellPadTop, "pad-top", 0, "Top padding in cells")
 	layoutFlags.IntVar(&config.CellPadBottom, "pad-bottom", 0, "Bottom padding in cells")
+	layoutFlags.IntVar(&config.CellSpacing, "cell-spacing", 0, "Cell spacing in cells")
+	layoutFlags.BoolVarP(&config.ShowPrompt, "show-prompt", "p", false, "Show the prompt used to generate the screenshot")
 	execCommand.Flags().AddFlagSet(layoutFlags)
 	rfg[layoutFlags] = "layout"
+
+	// Additional utility commands
+	execCommand.AddCommand(execThemesCmd)
 
 	// Set usage function
 	setUsageFunc(rootCmd, rfg, "[flags] [command] [args...]")
@@ -463,7 +484,24 @@ func setUsageFunc(cmd *cobra.Command, rfg map[*pflag.FlagSet]string, usageStr st
 		// Flags by group
 		fmt.Println(styles.subtitle.Render("Flags:"))
 
-		for fs, name := range rfg {
+		// Disable sorting to have consistent output
+		for fs := range rfg {
+			fs.SortFlags = false
+		}
+
+		// Sort flags by group
+		var keys []*pflag.FlagSet
+		for k := range rfg {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool {
+			return rfg[keys[i]] < rfg[keys[j]]
+		})
+
+		for _, fs := range keys {
+			// Get group name
+			name := rfg[fs]
+
 			// Print group title
 			fmt.Println(styles.groupTitle.Render("  " + cases.Title(language.English).String(name) + ":"))
 

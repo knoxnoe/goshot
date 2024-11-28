@@ -21,6 +21,7 @@ import (
 	"github.com/watzon/goshot/pkg/chrome"
 	"github.com/watzon/goshot/pkg/content"
 	"github.com/watzon/goshot/pkg/content/code"
+	content_term "github.com/watzon/goshot/pkg/content/term"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/render"
 	"golang.org/x/term"
@@ -172,7 +173,7 @@ func executeComamand(ctx context.Context, args []string) ([]byte, error) {
 }
 
 func renderCode(config *Config, echo bool, input string) error {
-	canvas, err := makeCanvas(config)
+	canvas, err := makeCanvas(config, []string{})
 	if err != nil {
 		return err
 	}
@@ -282,7 +283,65 @@ func renderCode(config *Config, echo bool, input string) error {
 	return nil
 }
 
-func makeCanvas(config *Config) (*render.Canvas, error) {
+func renderTerm(config *Config, echo bool, args []string, input []byte) error {
+	canvas, err := makeCanvas(config, args)
+	if err != nil {
+		return err
+	}
+
+	// Get font
+	fontSize := 14.0
+	var requestedFont *fonts.Font
+	if config.Font == "" {
+		requestedFont, err = fonts.GetFallback(fonts.FallbackMono)
+		if err != nil {
+			return err
+		}
+	} else {
+		var fontStr string
+		fontStr, fontSize = parseFonts(config.Font)
+		if fontStr == "" {
+			return fmt.Errorf("invalid font: %s", config.Font)
+		} else {
+			requestedFont, err = fonts.GetFont(fontStr, nil)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	renderer := content_term.NewRenderer(input, &content_term.TermStyle{
+		Args:          args,
+		Theme:         config.Theme,
+		Font:          requestedFont,
+		FontSize:      fontSize,
+		LineHeight:    config.LineHeight,
+		PaddingLeft:   config.CodePadLeft,
+		PaddingRight:  config.CodePadRight,
+		PaddingTop:    config.CodePadTop,
+		PaddingBottom: config.CodePadBottom,
+		Width:         config.CellWidth,
+		Height:        config.CellHeight,
+		AutoSize:      config.AutoSize,
+		CellSpacing:   config.CellSpacing,
+		ShowPrompt:    config.ShowPrompt,
+	})
+
+	canvas.WithContent(renderer)
+
+	err = saveCanvasToImage(canvas, config)
+	if err == nil {
+		if echo {
+			logMessage(styles.successBox, "WROTE", config.OutputFile)
+		}
+	} else {
+		return fmt.Errorf("failed to save image: %v", err)
+	}
+
+	return nil
+}
+
+func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 	var err error
 
 	// Create canvas
@@ -318,11 +377,9 @@ func makeCanvas(config *Config) (*render.Canvas, error) {
 		}
 
 		if config.AutoTitle {
-			// if len(args) > 0 {
-			// 	window = window.WithTitle(filepath.Base(args[0]))
-			// } else if config.ExecuteCommand != "" {
-			// 	window = window.WithTitle(config.ExecuteCommand)
-			// }
+			if len(args) > 0 {
+				window = window.WithTitle(filepath.Base(args[0]))
+			}
 		} else {
 			window = window.WithTitle(config.WindowTitle)
 		}
