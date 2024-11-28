@@ -124,16 +124,17 @@ type Config struct {
 	ShadowOffsetY    float64
 
 	// Exec specific
-	CellWidth     int
-	CellHeight    int
-	AutoSize      bool
-	CellPadLeft   int
-	CellPadRight  int
-	CellPadTop    int
-	CellPadBottom int
-	CellSpacing   int
-	ShowPrompt    bool
-	AutoTitle     bool
+	CellWidth      int
+	CellHeight     int
+	AutoSize       bool
+	CellPadLeft    int
+	CellPadRight   int
+	CellPadTop     int
+	CellPadBottom  int
+	CellSpacing    int
+	ShowPrompt     bool
+	AutoTitle      bool
+	PromptTemplate string
 }
 
 var config Config
@@ -194,7 +195,7 @@ var rootCmd = &cobra.Command{
 }
 
 var execCommand = &cobra.Command{
-	Use:   "exec [command]",
+	Use:   "exec [args...] -- [command] [command args...]",
 	Short: "Execute a command and create a screenshot of its output",
 	Long:  styles.info.Render("Execute a command and create a beautiful screenshot of its output"),
 	Args:  cobra.MinimumNArgs(1),
@@ -419,7 +420,7 @@ func initRootConfig() {
 	rootCmd.AddCommand(execCommand, rootThemesCmd, fontsCmd, languagesCmd, versionCmd)
 
 	// Set usage function
-	setUsageFunc(rootCmd, rfg, "[flags] [file]")
+	setUsageFunc(rootCmd, rfg)
 }
 
 func initExecConfig() {
@@ -444,6 +445,7 @@ func initExecConfig() {
 
 	// Appearance flags
 	appearanceFlags := makeAppearanceFlagSet()
+	appearanceFlags.StringVarP(&config.PromptTemplate, "prompt-template", "P", "\x1b[1;35m❯ \x1b[0;32m[command]\x1b[0m\n", "Prompt template")
 	execCommand.Flags().AddFlagSet(appearanceFlags)
 	rfg[appearanceFlags] = "appearance"
 
@@ -452,10 +454,10 @@ func initExecConfig() {
 	layoutFlags.IntVarP(&config.CellWidth, "width", "w", 120, "Terminal width in cells")
 	layoutFlags.IntVarP(&config.CellHeight, "height", "H", 40, "Terminal height in cells")
 	layoutFlags.BoolVarP(&config.AutoSize, "auto-size", "A", false, "Resize terminal to fit content (width and height must already be larger than content)")
-	layoutFlags.IntVar(&config.CellPadLeft, "pad-left", 0, "Left padding in cells")
-	layoutFlags.IntVar(&config.CellPadRight, "pad-right", 0, "Right padding in cells")
-	layoutFlags.IntVar(&config.CellPadTop, "pad-top", 0, "Top padding in cells")
-	layoutFlags.IntVar(&config.CellPadBottom, "pad-bottom", 0, "Bottom padding in cells")
+	layoutFlags.IntVar(&config.CellPadLeft, "pad-left", 1, "Left padding in cells")
+	layoutFlags.IntVar(&config.CellPadRight, "pad-right", 1, "Right padding in cells")
+	layoutFlags.IntVar(&config.CellPadTop, "pad-top", 1, "Top padding in cells")
+	layoutFlags.IntVar(&config.CellPadBottom, "pad-bottom", 1, "Bottom padding in cells")
 	layoutFlags.IntVar(&config.CellSpacing, "cell-spacing", 0, "Cell spacing in cells")
 	layoutFlags.BoolVarP(&config.ShowPrompt, "show-prompt", "p", false, "Show the prompt used to generate the screenshot")
 	execCommand.Flags().AddFlagSet(layoutFlags)
@@ -465,19 +467,15 @@ func initExecConfig() {
 	execCommand.AddCommand(execThemesCmd)
 
 	// Set usage function
-	setUsageFunc(rootCmd, rfg, "[flags] [command] [args...]")
+	setUsageFunc(rootCmd, rfg)
 }
 
-func setUsageFunc(cmd *cobra.Command, rfg map[*pflag.FlagSet]string, usageStr string) {
+func setUsageFunc(cmd *cobra.Command, rfg map[*pflag.FlagSet]string) {
 	cmd.SetUsageFunc(func(cmd *cobra.Command) error {
 		fmt.Println(styles.subtitle.Render("Usage:"))
 		fmt.Printf("  %s", cmd.Name())
 
-		if usageStr != "" {
-			fmt.Printf(" %s", usageStr)
-		} else if cmd.HasAvailableLocalFlags() {
-			fmt.Printf(" [flags]")
-		}
+		fmt.Printf(" %s", cmd.Use)
 		fmt.Println()
 		fmt.Println()
 

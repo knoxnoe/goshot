@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -162,6 +163,13 @@ func executeComamand(ctx context.Context, args []string) ([]byte, error) {
 	}()
 
 	cmd := exec.CommandContext(ctx, args[0], args[1:]...) //nolint: gosec
+
+	// Create a pipe for stderr
+	stderrPipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
 	if err := pty.Start(cmd); err != nil {
 		return nil, err
 	}
@@ -170,11 +178,16 @@ func executeComamand(ctx context.Context, args []string) ([]byte, error) {
 	var errorOut bytes.Buffer
 	go func() {
 		_, _ = io.Copy(&out, pty)
-		errorOut.Write(out.Bytes())
+	}()
+
+	// Read stderr
+	go func() {
+		_, _ = io.Copy(&errorOut, stderrPipe)
 	}()
 
 	if err := xpty.WaitProcess(ctx, cmd); err != nil {
-		return errorOut.Bytes(), err //nolint: wrapcheck
+		// Return stderr and the error
+		return errorOut.Bytes(), fmt.Errorf("%s %v", errorOut.String(), err)
 	}
 	return out.Bytes(), nil
 }
@@ -323,15 +336,16 @@ func renderTerm(config *Config, echo bool, args []string, input []byte) error {
 		Font:          requestedFont,
 		FontSize:      fontSize,
 		LineHeight:    config.LineHeight,
-		PaddingLeft:   config.CodePadLeft,
-		PaddingRight:  config.CodePadRight,
-		PaddingTop:    config.CodePadTop,
-		PaddingBottom: config.CodePadBottom,
+		PaddingLeft:   config.CellPadLeft,
+		PaddingRight:  config.CellPadRight,
+		PaddingTop:    config.CellPadTop,
+		PaddingBottom: config.CellPadBottom,
 		Width:         config.CellWidth,
 		Height:        config.CellHeight,
 		AutoSize:      config.AutoSize,
 		CellSpacing:   config.CellSpacing,
 		ShowPrompt:    config.ShowPrompt,
+		PromptFunc:    newPromptFunc(config.PromptTemplate),
 	})
 
 	canvas.WithContent(renderer)
@@ -534,5 +548,33 @@ func saveCanvasToImage(canvas *render.Canvas, config *Config) error {
 		return canvas.SaveAsBMP(config.OutputFile)
 	default:
 		return fmt.Errorf("unsupported file format: %s", ext)
+	}
+}
+
+func newPromptFunc(template string) func(command string) string {
+	return func(command string) string {
+		prompt := template
+
+		// Replace placeholders with actual values
+		if strings.Contains(prompt, "[user]") {
+			if usr, err := user.Current(); err == nil {
+				prompt = strings.ReplaceAll(prompt, "[user]", usr.Username)
+			}
+		}
+		if strings.Contains(prompt, "[host]") {
+			if host, err := os.Hostname(); err == nil {
+				prompt = strings.ReplaceAll(prompt, "[host]", host)
+			}
+		}
+		if strings.Contains(prompt, "[path]") {
+			if cwd, err := os.Getwd(); err == nil {
+				prompt = strings.ReplaceAll(prompt, "[path]", cwd)
+			}
+		}
+		if strings.Contains(prompt, "[command]") {
+			prompt = strings.ReplaceAll(prompt, "[command]", command)
+		}
+
+		return prompt
 	}
 }
