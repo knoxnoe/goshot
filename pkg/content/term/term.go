@@ -9,8 +9,6 @@ import (
 
 	"strconv"
 
-	"github.com/alecthomas/chroma/v2"
-	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/term"
 	"github.com/watzon/goshot/pkg/fonts"
@@ -19,23 +17,27 @@ import (
 )
 
 type TermStyle struct {
-	Theme         string      // The chroma syntax theme to use
-	Font          *fonts.Font // The font to use
-	FontSize      float64     // The font size in points
-	LineHeight    float64     // The line height multiplier
-	PaddingLeft   int         // Padding between the code and the left edge
-	PaddingRight  int         // Padding between the code and the right edge
-	PaddingTop    int         // Padding between the code and the top edge
-	PaddingBottom int         // Padding between the code and the bottom edge
-	Width         int         // Terminal width in cells
-	Height        int         // Terminal height in cells
-	AutoSize      bool        // Whether to automatically size the output to the content
-	CellSpacing   int         // Additional horizontal spacing between cells
+	Args          []string                    // Command and arguments
+	Theme         string                      // The terminal theme to use
+	Font          *fonts.Font                 // The font to use
+	FontSize      float64                     // The font size in points
+	LineHeight    float64                     // The line height multiplier
+	PaddingLeft   int                         // Padding between the code and the left edge
+	PaddingRight  int                         // Padding between the code and the right edge
+	PaddingTop    int                         // Padding between the code and the top edge
+	PaddingBottom int                         // Padding between the code and the bottom edge
+	Width         int                         // Terminal width in cells
+	Height        int                         // Terminal height in cells
+	AutoSize      bool                        // Whether to automatically size the output to the content
+	CellSpacing   int                         // Additional horizontal spacing between cells
+	ShowPrompt    bool                        // Whether to show a prompt
+	PromptFunc    func(command string) string // Template function that returns the prompt text
 }
 
 type TermRenderer struct {
 	Output []byte
 	Style  *TermStyle
+	theme  *Theme // Store theme here
 }
 
 type Attributes struct {
@@ -55,26 +57,37 @@ type Cell struct {
 }
 
 type Terminal struct {
-	Cells     [][]Cell
-	Width     int
-	Height    int
-	CursorX   int
-	CursorY   int
-	CurrAttrs Attributes
-	CurrFg    color.Color
-	CurrBg    color.Color
-	Style     *chroma.Style // Theme colors from chroma
-	MaxX      int           // For dynamic sizing
-	MaxY      int           // For dynamic sizing
-	DefaultFg color.Color
-	DefaultBg color.Color
-	AutoSize  bool // Whether to automatically size the terminal
+	Cells         [][]Cell
+	Width         int
+	Height        int
+	CursorX       int
+	CursorY       int
+	CurrAttrs     Attributes
+	CurrFg        color.Color
+	CurrBg        color.Color
+	Style         *Theme // Theme colors from theme
+	MaxX          int    // For dynamic sizing
+	MaxY          int    // For dynamic sizing
+	DefaultFg     color.Color
+	DefaultBg     color.Color
+	AutoSize      bool // Whether to automatically size the terminal
+	PaddingLeft   int
+	PaddingRight  int
+	PaddingTop    int
+	PaddingBottom int
 }
 
 func NewRenderer(input []byte, style *TermStyle) *TermRenderer {
+	// Get the theme once during renderer creation
+	theme := GetTheme(style.Theme)
+	if theme == nil {
+		theme = GetTheme("Dracula") // Default to Dracula theme
+	}
+
 	return &TermRenderer{
 		Output: input,
 		Style:  style,
+		theme:  theme,
 	}
 }
 
@@ -85,22 +98,30 @@ func DefaultRenderer(input []byte) *TermRenderer {
 	}
 
 	return NewRenderer(input, &TermStyle{
-		Theme:         "monokai",
+		Theme:         "Dracula",
 		Font:          font,
 		FontSize:      14,
-		LineHeight:    1.2,
-		PaddingLeft:   20,
-		PaddingRight:  20,
-		PaddingTop:    20,
-		PaddingBottom: 20,
-		Width:         0,
-		Height:        0,
-		CellSpacing:   1,
+		LineHeight:    1.25,
+		PaddingLeft:   1,
+		PaddingRight:  1,
+		PaddingTop:    1,
+		PaddingBottom: 1,
+		Width:         120,
+		Height:        40,
+		AutoSize:      false,
+		ShowPrompt:    false,
+		PromptFunc:    func(command string) string { return fmt.Sprintf("❯ %s", command) },
 	})
 }
 
 func (r *TermRenderer) WithTheme(theme string) *TermRenderer {
 	r.Style.Theme = theme
+	// Update the actual theme instance
+	newTheme := GetTheme(theme)
+	if newTheme == nil {
+		newTheme = GetTheme("Dracula") // Default to Dracula theme
+	}
+	r.theme = newTheme
 	return r
 }
 
@@ -160,18 +181,46 @@ func (r *TermRenderer) WithAutoSize() *TermRenderer {
 	return r
 }
 
+func (r *TermRenderer) WithShowPrompt() *TermRenderer {
+	if r.Style == nil {
+		r.Style = &TermStyle{}
+	}
+	r.Style.ShowPrompt = true
+	return r
+}
+
+func (r *TermRenderer) WithPromptFunc(promptFunc func(command string) string) *TermRenderer {
+	if r.Style == nil {
+		r.Style = &TermStyle{}
+	}
+	r.Style.PromptFunc = promptFunc
+	return r
+}
+
+func (r *TermRenderer) WithArgs(args []string) *TermRenderer {
+	if r.Style == nil {
+		r.Style = &TermStyle{}
+	}
+	r.Style.Args = args
+	return r
+}
+
 func (t *Terminal) Reset() {
-	t.CursorX = 0
-	t.CursorY = 0
+	t.CursorX = t.PaddingLeft
+	t.CursorY = t.PaddingTop
 	t.CurrAttrs = Attributes{}
 	t.CurrFg = t.DefaultFg
 	t.CurrBg = t.DefaultBg
 }
 
 func (t *Terminal) Resize(width, height int) {
-	newCells := make([][]Cell, height)
+	// Add padding to dimensions
+	totalWidth := width + t.PaddingLeft + t.PaddingRight
+	totalHeight := height + t.PaddingTop + t.PaddingBottom
+
+	newCells := make([][]Cell, totalHeight)
 	for i := range newCells {
-		newCells[i] = make([]Cell, width)
+		newCells[i] = make([]Cell, totalWidth)
 		// Initialize with default colors and empty runes
 		for j := range newCells[i] {
 			newCells[i][j] = Cell{
@@ -182,21 +231,22 @@ func (t *Terminal) Resize(width, height int) {
 		}
 	}
 
-	// Copy existing content
-	for y := 0; y < min(len(t.Cells), height); y++ {
-		for x := 0; x < min(len(t.Cells[y]), width); x++ {
+	// Copy existing content, accounting for padding
+	for y := 0; y < min(len(t.Cells), totalHeight); y++ {
+		for x := 0; x < min(len(t.Cells[y]), totalWidth); x++ {
 			newCells[y][x] = t.Cells[y][x]
 		}
 	}
 
 	t.Cells = newCells
-	t.Width = width
-	t.Height = height
+	t.Width = totalWidth
+	t.Height = totalHeight
 }
 
 func (t *Terminal) SetCell(x, y int, ch rune) {
 	// Ignore any attempts to set cells with negative coordinates
-	if x < 0 || y < 0 {
+	// or before padding
+	if x < t.PaddingLeft || y < t.PaddingTop {
 		return
 	}
 
@@ -204,25 +254,25 @@ func (t *Terminal) SetCell(x, y int, ch rune) {
 	if t.AutoSize {
 		t.MaxX = max(t.MaxX, x+1)
 		t.MaxY = max(t.MaxY, y+1)
-		// Only return if we're not auto-sizing
-		if (t.Width > 0 && x >= t.Width) || (t.Height > 0 && y >= t.Height) {
-			return
+		// Resize if needed
+		if y >= len(t.Cells) || x >= len(t.Cells[0]) {
+			t.Resize(max(t.Width, x+1), max(t.Height, y+1))
 		}
 	} else {
-		// If not auto-sizing, respect the terminal boundaries
-		if (t.Width > 0 && x >= t.Width) || (t.Height > 0 && y >= t.Height) {
+		// If not auto-sizing, respect the terminal boundaries including padding
+		if x >= t.Width || y >= t.Height {
 			return
 		}
 	}
 
 	// Ensure we have enough rows
 	for len(t.Cells) <= y {
-		t.Cells = append(t.Cells, make([]Cell, max(t.Width, x+1)))
+		t.Cells = append(t.Cells, make([]Cell, t.Width))
 	}
 
 	// Ensure the row has enough columns
 	if len(t.Cells[y]) <= x {
-		newRow := make([]Cell, max(t.Width, x+1))
+		newRow := make([]Cell, t.Width)
 		copy(newRow, t.Cells[y])
 		t.Cells[y] = newRow
 	}
@@ -236,11 +286,15 @@ func (t *Terminal) SetCell(x, y int, ch rune) {
 }
 
 func (t *Terminal) NewLine() {
-	t.CursorX = 0
+	t.CursorX = t.PaddingLeft
 	t.CursorY++
+	// If we're at the top padding, skip to the content area
+	if t.CursorY < t.PaddingTop {
+		t.CursorY = t.PaddingTop
+	}
 	if t.Height > 0 && t.CursorY >= t.Height {
-		// Scroll up
-		copy(t.Cells[0:], t.Cells[1:])
+		// Scroll up, preserving padding area
+		copy(t.Cells[t.PaddingTop:], t.Cells[t.PaddingTop+1:])
 		t.CursorY = t.Height - 1
 		// Clear the new line
 		for x := range t.Cells[t.CursorY] {
@@ -253,35 +307,27 @@ func (t *Terminal) NewLine() {
 	}
 }
 
-func NewTerminal(style *TermStyle) *Terminal {
-	// Get the chroma style
-	chromaStyle := styles.Get(style.Theme)
-	if chromaStyle == nil {
-		chromaStyle = styles.Fallback
-	}
-
-	// If the style has a default foreground color, use it
-	fg := chromaStyle.Get(chroma.Text).Colour
-	defaultFg := chromaColorToRGBA(fg)
-
-	// If the style has a default background color, use it
-	bg := chromaStyle.Get(chroma.Background).Background
-	defaultBg := chromaColorToRGBA(bg)
-
+func NewTerminal(style *TermStyle, theme *Theme) *Terminal {
 	t := &Terminal{
-		Width:     style.Width,
-		Height:    style.Height,
-		Style:     chromaStyle,
-		DefaultFg: defaultFg,
-		DefaultBg: defaultBg,
-		AutoSize:  style.AutoSize,
+		Width:         style.Width,
+		Height:        style.Height,
+		AutoSize:      style.AutoSize,
+		PaddingLeft:   style.PaddingLeft,
+		PaddingRight:  style.PaddingRight,
+		PaddingTop:    style.PaddingTop,
+		PaddingBottom: style.PaddingBottom,
+		DefaultFg:     theme.GetForeground(),
+		DefaultBg:     theme.GetBackground(),
+		CurrFg:        theme.GetForeground(),
+		CurrBg:        theme.GetBackground(),
+		Style:         theme,
+		// Initialize cursor position at the start of the content area
+		CursorX: style.PaddingLeft,
+		CursorY: style.PaddingTop,
 	}
 
-	if style.Width > 0 && style.Height > 0 {
-		t.Resize(style.Width, style.Height)
-	}
-
-	t.Reset()
+	// Initialize cells
+	t.Resize(style.Width, style.Height)
 	return t
 }
 
@@ -305,42 +351,47 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	p := ansi.GetParser()
 	defer ansi.PutParser(p)
 
-	term := NewTerminal(r.Style)
+	// Create a new terminal with the current style
+	t := NewTerminal(r.Style, r.theme)
 	in := r.Output
 
-	fmt.Printf("Input bytes: %v\n", in)
+	// Add prompt if needed
+	if r.Style.ShowPrompt && r.Style.PromptFunc != nil && len(r.Style.Args) > 0 {
+		// Join args into a command string
+		cmd := strings.Join(r.Style.Args, " ")
+		// Generate prompt text
+		promptText := r.Style.PromptFunc(cmd)
+		// Convert to bytes and prepend to input
+		promptBytes := []byte(promptText + "\n")
+		in = append(promptBytes, in...)
+	}
 
 	for len(in) > 0 {
 		seq, width, n, newState := ansi.DecodeSequence(in, state, p)
 		if n == 0 {
 			// If we can't decode the sequence, skip one byte
-			fmt.Printf("Failed to decode sequence, skipping byte: %x\n", in[0])
 			in = in[1:]
 			continue
 		}
 
 		if width > 0 {
 			// This is a character
-			fmt.Printf("Character: %q (hex: %x) width: %d\n", seq, seq, width)
-			term.SetCell(term.CursorX, term.CursorY, rune(seq[0]))
-			fmt.Printf("Set cell at (%d,%d) to %q, MaxX: %d, MaxY: %d\n",
-				term.CursorX, term.CursorY, rune(seq[0]), term.MaxX, term.MaxY)
-			term.CursorX++
-			if term.Width > 0 && term.CursorX >= term.Width {
-				term.NewLine()
+			// Convert the entire sequence to a rune
+			r := []rune(string(seq))[0]
+			t.SetCell(t.CursorX, t.CursorY, r)
+			t.CursorX++
+			if t.Width > 0 && t.CursorX >= t.Width {
+				t.NewLine()
 			}
 		} else {
 			// This is a control sequence
 			prefix := getPrefix(seq)
 			s := string(seq)
-			fmt.Printf("Control sequence: %q prefix: %s\n", s, prefix)
 
 			if s == "\n" {
-				fmt.Printf("Newline detected! CursorY: %d -> %d\n", term.CursorY, term.CursorY+1)
-				term.NewLine()
+				t.NewLine()
 			} else if s == "\r" {
-				fmt.Printf("Carriage return! CursorX: %d -> 0\n", term.CursorX)
-				term.CursorX = 0
+				t.CursorX = 0
 			} else {
 				switch prefix {
 				case "CSI":
@@ -348,123 +399,167 @@ func (r *TermRenderer) Render() (image.Image, error) {
 					if strings.HasSuffix(s, "m") {
 						// SGR (Select Graphic Rendition)
 						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "m")
-						fmt.Printf("SGR params: %s\n", params)
-						for i, param := range strings.Split(params, ";") {
-							code, _ := strconv.Atoi(param)
+						paramSlice := strings.Split(params, ";")
+						for i := 0; i < len(paramSlice); i++ {
+							code, _ := strconv.Atoi(paramSlice[i])
 							switch {
 							case code == 0:
-								term.CurrAttrs = Attributes{}
-								term.CurrFg = term.DefaultFg
-								term.CurrBg = term.DefaultBg
-								fmt.Printf("Reset attributes\n")
+								t.CurrAttrs = Attributes{}
+								t.CurrFg = t.DefaultFg
+								t.CurrBg = t.DefaultBg
 							case code == 1:
-								term.CurrAttrs.Bold = true
-								fmt.Printf("Set bold\n")
+								t.CurrAttrs.Bold = true
 							case code == 3:
-								term.CurrAttrs.Italic = true
-								fmt.Printf("Set italic\n")
+								t.CurrAttrs.Italic = true
 							case code == 4:
-								term.CurrAttrs.Underline = true
-								fmt.Printf("Set underline\n")
+								t.CurrAttrs.Underline = true
 							case code == 5:
-								term.CurrAttrs.Blink = true
-								fmt.Printf("Set blink\n")
+								t.CurrAttrs.Blink = true
 							case code == 7:
 								// Reverse video (swap fg and bg)
-								term.CurrFg, term.CurrBg = term.CurrBg, term.CurrFg
-								fmt.Printf("Reverse video\n")
+								t.CurrFg, t.CurrBg = t.CurrBg, t.CurrFg
 							case code == 9:
-								term.CurrAttrs.Strikethrough = true
-								fmt.Printf("Set strikethrough\n")
+								t.CurrAttrs.Strikethrough = true
 							case code == 22:
-								term.CurrAttrs.Bold = false
-								fmt.Printf("Reset bold\n")
+								t.CurrAttrs.Bold = false
 							case code == 23:
-								term.CurrAttrs.Italic = false
-								fmt.Printf("Reset italic\n")
+								t.CurrAttrs.Italic = false
 							case code == 24:
-								term.CurrAttrs.Underline = false
-								fmt.Printf("Reset underline\n")
+								t.CurrAttrs.Underline = false
 							case code == 25:
-								term.CurrAttrs.Blink = false
-								fmt.Printf("Reset blink\n")
+								t.CurrAttrs.Blink = false
 							case code == 27:
 								// Reset reverse video
-								term.CurrFg, term.CurrBg = term.DefaultFg, term.DefaultBg
-								fmt.Printf("Reset reverse video\n")
+								t.CurrFg, t.CurrBg = t.DefaultFg, t.DefaultBg
 							case code == 29:
-								term.CurrAttrs.Strikethrough = false
-								fmt.Printf("Reset strikethrough\n")
+								t.CurrAttrs.Strikethrough = false
 							case code >= 30 && code <= 37:
-								// Foreground color
-								term.CurrFg = ansiColor(code-30, r.Style)
-								fmt.Printf("Set fg color: %d\n", code-30)
+								// Standard foreground colors (30-37)
+								t.CurrFg = ansiColor(code-30, r.theme)
+							case code >= 40 && code <= 47:
+								// Standard background colors (40-47)
+								t.CurrBg = ansiColor(code-40, r.theme)
+							case code >= 90 && code <= 97:
+								// Bright foreground colors (90-97)
+								t.CurrFg = ansiBrightColor(code-90, r.theme)
+							case code >= 100 && code <= 107:
+								// Bright background colors (100-107)
+								t.CurrBg = ansiBrightColor(code-100, r.theme)
 							case code == 38:
-								// 24-bit RGB foreground color
-								paramSlice := strings.Split(params, ";")
-								if i < len(paramSlice)-4 && paramSlice[i+1] == "2" {
+								// Extended foreground color
+								if i+4 < len(paramSlice) && paramSlice[i+1] == "2" {
+									// RGB (38;2;r;g;b)
 									r, _ := strconv.Atoi(paramSlice[i+2])
 									g, _ := strconv.Atoi(paramSlice[i+3])
 									b, _ := strconv.Atoi(paramSlice[i+4])
-									term.CurrFg = color.RGBA{uint8(r), uint8(g), uint8(b), 255}
-									fmt.Printf("Set RGB fg color: %d,%d,%d\n", r, g, b)
-									i += 4 // Skip the color components we just processed
-									continue
+									t.CurrFg = color.RGBA{uint8(r), uint8(g), uint8(b), 255}
+									i += 4
+								} else if i+2 < len(paramSlice) && paramSlice[i+1] == "5" {
+									// 256 color (38;5;n)
+									if i+2 < len(paramSlice) {
+										colorNum, _ := strconv.Atoi(paramSlice[i+2])
+										if colorNum < 8 {
+											// Standard colors (0-7)
+											t.CurrFg = ansiColor(colorNum, r.theme)
+										} else if colorNum < 16 {
+											// Bright colors (8-15)
+											t.CurrFg = ansiBrightColor(colorNum-8, r.theme)
+										} else if colorNum < 232 {
+											// 216 color cube (16-231): 6x6x6
+											colorNum -= 16
+											b := colorNum % 6
+											colorNum /= 6
+											g := colorNum % 6
+											r := colorNum / 6
+											t.CurrFg = color.RGBA{
+												uint8(r * 42),
+												uint8(g * 42),
+												uint8(b * 42),
+												255,
+											}
+										} else {
+											// Grayscale (232-255): 24 shades
+											gray := uint8((colorNum-232)*10 + 8)
+											t.CurrFg = color.RGBA{gray, gray, gray, 255}
+										}
+										i += 2
+									}
+								}
+							case code == 48:
+								// Extended background color
+								if i+4 < len(paramSlice) && paramSlice[i+1] == "2" {
+									// RGB (48;2;r;g;b)
+									r, _ := strconv.Atoi(paramSlice[i+2])
+									g, _ := strconv.Atoi(paramSlice[i+3])
+									b, _ := strconv.Atoi(paramSlice[i+4])
+									t.CurrBg = color.RGBA{uint8(r), uint8(g), uint8(b), 255}
+									i += 4
+								} else if i+2 < len(paramSlice) && paramSlice[i+1] == "5" {
+									// 256 color (48;5;n)
+									if i+2 < len(paramSlice) {
+										colorNum, _ := strconv.Atoi(paramSlice[i+2])
+										if colorNum < 8 {
+											// Standard colors (0-7)
+											t.CurrBg = ansiColor(colorNum, r.theme)
+										} else if colorNum < 16 {
+											// Bright colors (8-15)
+											t.CurrBg = ansiBrightColor(colorNum-8, r.theme)
+										} else if colorNum < 232 {
+											// 216 color cube (16-231): 6x6x6
+											colorNum -= 16
+											b := colorNum % 6
+											colorNum /= 6
+											g := colorNum % 6
+											r := colorNum / 6
+											t.CurrBg = color.RGBA{
+												uint8(r * 42),
+												uint8(g * 42),
+												uint8(b * 42),
+												255,
+											}
+										} else {
+											// Grayscale (232-255): 24 shades
+											gray := uint8((colorNum-232)*10 + 8)
+											t.CurrBg = color.RGBA{gray, gray, gray, 255}
+										}
+										i += 2
+									}
 								}
 							case code == 39:
 								// Default foreground color
-								term.CurrFg = term.DefaultFg
-								fmt.Printf("Reset fg color\n")
-							case code >= 40 && code <= 47:
-								// Background color
-								term.CurrBg = ansiColor(code-40, r.Style)
-								fmt.Printf("Set bg color: %d\n", code-40)
-							case code == 48:
-								// 24-bit RGB background color
-								paramSlice := strings.Split(params, ";")
-								if i < len(paramSlice)-4 && paramSlice[i+1] == "2" {
-									r, _ := strconv.Atoi(paramSlice[i+2])
-									g, _ := strconv.Atoi(paramSlice[i+3])
-									b, _ := strconv.Atoi(paramSlice[i+4])
-									term.CurrBg = color.RGBA{uint8(r), uint8(g), uint8(b), 255}
-									fmt.Printf("Set RGB bg color: %d,%d,%d\n", r, g, b)
-									i += 4 // Skip the color components we just processed
-									continue
-								}
+								t.CurrFg = t.DefaultFg
 							case code == 49:
 								// Default background color
-								term.CurrBg = term.DefaultBg
-								fmt.Printf("Reset bg color\n")
-							case code >= 90 && code <= 97:
-								// Bright foreground color
-								term.CurrFg = ansiBrightColor(code-90, r.Style)
-								fmt.Printf("Set bright fg color: %d\n", code-90)
-							case code >= 100 && code <= 107:
-								// Bright background color
-								term.CurrBg = ansiBrightColor(code-100, r.Style)
-								fmt.Printf("Set bright bg color: %d\n", code-100)
+								t.CurrBg = t.DefaultBg
 							}
 						}
+					} else if strings.HasSuffix(s, "G") {
+						// Cursor Horizontal Absolute (CHA)
+						// Move cursor to specific column
+						n := 1 // Default to column 1
+						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "G")
+						if params != "" {
+							n, _ = strconv.Atoi(params)
+						}
+						// Convert from 1-based to 0-based indexing
+						n = max(1, n) // Ensure n is at least 1
+						t.CursorX = min(t.Width-t.PaddingRight-1, t.PaddingLeft+n-1)
 					} else if strings.HasSuffix(s, "H") || strings.HasSuffix(s, "f") {
 						// Cursor position
-						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "H")
-						fmt.Printf("Raw cursor position command: %q with params: %q\n", s, params)
-						if params == "" {
-							term.CursorX = 0
-							term.CursorY = 0
-							fmt.Printf("Reset cursor position to (0,0)\n")
-						} else {
+						row, col := 1, 1
+						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), string(s[len(s)-1]))
+						if params != "" {
 							parts := strings.Split(params, ";")
-							fmt.Printf("Cursor position parts: %v\n", parts)
-							if len(parts) == 2 {
-								row, _ := strconv.Atoi(parts[0])
-								col, _ := strconv.Atoi(parts[1])
-								term.CursorY = max(0, row-1)
-								term.CursorX = max(0, col-1)
-								fmt.Printf("Set cursor position to (%d,%d) from row=%d, col=%d\n", 
-									term.CursorX, term.CursorY, row, col)
+							if len(parts) >= 1 {
+								row, _ = strconv.Atoi(parts[0])
+							}
+							if len(parts) >= 2 {
+								col, _ = strconv.Atoi(parts[1])
 							}
 						}
+						// Adjust for padding and 1-based indexing
+						t.CursorY = min(t.Height-1, max(1, row))
+						t.CursorX = min(t.Width-t.PaddingRight-1, max(t.PaddingLeft, col-1+t.PaddingLeft))
 					} else if strings.HasSuffix(s, "A") {
 						// Cursor up
 						n := 1
@@ -472,8 +567,7 @@ func (r *TermRenderer) Render() (image.Image, error) {
 						if params != "" {
 							n, _ = strconv.Atoi(params)
 						}
-						term.CursorY = max(0, term.CursorY-n)
-						fmt.Printf("Cursor up %d to Y=%d\n", n, term.CursorY)
+						t.CursorY = max(1, t.CursorY-n) // Keep minimum at 1 to preserve first row
 					} else if strings.HasSuffix(s, "B") {
 						// Cursor down
 						n := 1
@@ -481,8 +575,7 @@ func (r *TermRenderer) Render() (image.Image, error) {
 						if params != "" {
 							n, _ = strconv.Atoi(params)
 						}
-						term.CursorY = min(term.Height-1, term.CursorY+n)
-						fmt.Printf("Cursor down %d to Y=%d\n", n, term.CursorY)
+						t.CursorY = min(t.Height-1, t.CursorY+n)
 					} else if strings.HasSuffix(s, "C") {
 						// Cursor forward
 						n := 1
@@ -490,8 +583,7 @@ func (r *TermRenderer) Render() (image.Image, error) {
 						if params != "" {
 							n, _ = strconv.Atoi(params)
 						}
-						term.CursorX = min(term.Width-1, term.CursorX+n)
-						fmt.Printf("Cursor forward %d to X=%d\n", n, term.CursorX)
+						t.CursorX = min(t.Width-t.PaddingRight-1, t.CursorX+n)
 					} else if strings.HasSuffix(s, "D") {
 						// Cursor backward
 						n := 1
@@ -499,8 +591,7 @@ func (r *TermRenderer) Render() (image.Image, error) {
 						if params != "" {
 							n, _ = strconv.Atoi(params)
 						}
-						term.CursorX = max(0, term.CursorX-n)
-						fmt.Printf("Cursor backward %d to X=%d\n", n, term.CursorX)
+						t.CursorX = max(t.PaddingLeft, t.CursorX-n)
 					} else if strings.HasSuffix(s, "K") {
 						// Erase in line
 						params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "K")
@@ -510,40 +601,35 @@ func (r *TermRenderer) Render() (image.Image, error) {
 						}
 						switch n {
 						case 0: // Clear from cursor to end of line
-							for x := term.CursorX; x < len(term.Cells[term.CursorY]); x++ {
-								term.Cells[term.CursorY][x] = Cell{
+							for x := t.CursorX; x < len(t.Cells[t.CursorY]); x++ {
+								t.Cells[t.CursorY][x] = Cell{
 									Char:    ' ',
-									FgColor: term.DefaultFg,
-									BgColor: term.DefaultBg,
+									FgColor: t.DefaultFg,
+									BgColor: t.DefaultBg,
 								}
 							}
-							fmt.Printf("Clear from cursor to end of line\n")
 						case 1: // Clear from cursor to start of line
-							for x := 0; x <= term.CursorX; x++ {
-								term.Cells[term.CursorY][x] = Cell{
+							for x := 0; x <= t.CursorX; x++ {
+								t.Cells[t.CursorY][x] = Cell{
 									Char:    ' ',
-									FgColor: term.DefaultFg,
-									BgColor: term.DefaultBg,
+									FgColor: t.DefaultFg,
+									BgColor: t.DefaultBg,
 								}
 							}
-							fmt.Printf("Clear from cursor to start of line\n")
 						case 2: // Clear entire line
-							for x := range term.Cells[term.CursorY] {
-								term.Cells[term.CursorY][x] = Cell{
+							for x := range t.Cells[t.CursorY] {
+								t.Cells[t.CursorY][x] = Cell{
 									Char:    ' ',
-									FgColor: term.DefaultFg,
-									BgColor: term.DefaultBg,
+									FgColor: t.DefaultFg,
+									BgColor: t.DefaultBg,
 								}
 							}
-							fmt.Printf("Clear entire line\n")
 						}
 					}
 				case "OSC":
 					// Just ignore OSC sequences for now
-					fmt.Printf("Ignoring OSC sequence: %q\n", s)
 				case "DCS":
 					// Just ignore DCS sequences for now
-					fmt.Printf("Ignoring DCS sequence: %q\n", s)
 				}
 			}
 		}
@@ -553,39 +639,68 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	}
 
 	// Print final dimensions
-	fmt.Printf("Final dimensions - MaxX: %d, MaxY: %d\n", term.MaxX, term.MaxY)
-	fmt.Printf("Grid contents:\n")
-	for y := 0; y < term.MaxY; y++ {
-		fmt.Printf("Row %d: ", y)
-		for x := 0; x < term.MaxX; x++ {
-			if y < len(term.Cells) && x < len(term.Cells[y]) {
-				fmt.Printf("%q ", term.Cells[y][x].Char)
-			} else {
-				fmt.Printf("  ")
-			}
-		}
-		fmt.Printf("\n")
-	}
 
 	// Calculate final dimensions
-	width := term.Width
-	height := term.Height
+	width := t.Width
+	height := t.Height
 	if width == 0 || r.Style.AutoSize {
-		width = term.MaxX
+		width = t.MaxX + t.PaddingRight // Add right padding
 	}
 	if height == 0 || r.Style.AutoSize {
-		height = term.MaxY
+		height = t.MaxY + t.PaddingBottom // Add bottom padding
 	}
 
-	// Create font face
-	face, err := r.Style.Font.GetFace(r.Style.FontSize, &fonts.FontStyle{
-		Weight:  fonts.WeightRegular,
-		Stretch: fonts.StretchNormal,
-	})
+	// Create font face using the base font's style
+	face, err := r.Style.Font.GetFace(r.Style.FontSize, &r.Style.Font.Style)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create font face: %v", err)
 	}
 	defer face.Close()
+
+	// Create a map to cache font faces for different styles
+	fontFaces := make(map[Attributes]*fonts.Face)
+	defer func() {
+		// Close all font faces when done
+		for _, f := range fontFaces {
+			f.Close()
+		}
+	}()
+
+	// Helper function to get or create a font face for a style
+	getFontFace := func(attrs Attributes) (*fonts.Face, error) {
+		if face, ok := fontFaces[attrs]; ok {
+			return face, nil
+		}
+
+		// Determine font style based on attributes
+		style := &fonts.FontStyle{
+			Weight:  fonts.WeightRegular,
+			Stretch: fonts.StretchNormal,
+		}
+
+		// Set font weight
+		if attrs.Bold {
+			style.Weight = fonts.WeightBold
+		}
+
+		// Set font style
+		if attrs.Italic {
+			style.Italic = true
+		}
+
+		face, err := r.Style.Font.GetFace(r.Style.FontSize, style)
+		if err != nil {
+			// Try fallback if the exact style is not available
+			style.Weight = fonts.WeightRegular
+			style.Italic = false
+			face, err = r.Style.Font.GetFace(r.Style.FontSize, style)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create font face: %v", err)
+			}
+		}
+		fontFaces[attrs] = face
+		return face, nil
+	}
 
 	// Measure the character width using the font metrics
 	charWidthI26, _ := face.Face.GlyphAdvance('M')
@@ -598,22 +713,19 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	img := image.NewRGBA(bounds)
 
 	// Fill background
-	draw.Draw(img, img.Bounds(), &image.Uniform{term.DefaultBg}, image.Point{}, draw.Src)
+	draw.Draw(img, img.Bounds(), &image.Uniform{t.DefaultBg}, image.Point{}, draw.Src)
 
 	// Draw cells
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
-			if y >= len(term.Cells) || x >= len(term.Cells[y]) {
+			if y >= len(t.Cells) || x >= len(t.Cells[y]) {
 				continue
 			}
 
-			cell := term.Cells[y][x]
-			if cell.Char == 0 || cell.Char == ' ' {
-				continue
-			}
+			cell := t.Cells[y][x]
 
 			// Draw background if different from default
-			if cell.BgColor != term.DefaultBg {
+			if cell.BgColor != t.DefaultBg {
 				cellRect := image.Rect(
 					x*charWidth+r.Style.PaddingLeft+r.Style.CellSpacing*x,
 					y*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop,
@@ -623,15 +735,26 @@ func (r *TermRenderer) Render() (image.Image, error) {
 				draw.Draw(img, cellRect, &image.Uniform{cell.BgColor}, image.Point{}, draw.Src)
 			}
 
+			if cell.Char == 0 || cell.Char == ' ' {
+				continue
+			}
+
 			// Draw the character
 			point := fixed.Point26_6{
 				X: fixed.Int26_6(x*charWidth+r.Style.PaddingLeft+r.Style.CellSpacing*x) << 6,
 				Y: fixed.Int26_6(y*int(float64(r.Style.FontSize)*r.Style.LineHeight)+r.Style.PaddingTop+int(r.Style.FontSize)) << 6,
 			}
+
+			// Get the appropriate font face for this cell's attributes
+			cellFace, err := getFontFace(cell.Attrs)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get font face for cell at (%d,%d): %v", x, y, err)
+			}
+
 			d := &font.Drawer{
 				Dst:  img,
 				Src:  &image.Uniform{cell.FgColor},
-				Face: face.Face,
+				Face: cellFace.Face,
 				Dot:  point,
 			}
 			d.DrawString(string(cell.Char))
@@ -641,75 +764,12 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	return img, nil
 }
 
-func ansiColor(code int, style *TermStyle) color.Color {
-	// Map ANSI colors to chroma theme colors where possible
-	chromaStyle := styles.Get(style.Theme)
-	if chromaStyle == nil {
-		chromaStyle = styles.Fallback
-	}
-
-	switch code {
-	case 0: // Black
-		c := chromaStyle.Get(chroma.Background).Background
-		return chromaColorToRGBA(c)
-	case 1: // Red
-		c := chromaStyle.Get(chroma.Error).Colour
-		return chromaColorToRGBA(c)
-	case 2: // Green
-		c := chromaStyle.Get(chroma.String).Colour
-		return chromaColorToRGBA(c)
-	case 3: // Yellow
-		c := chromaStyle.Get(chroma.Keyword).Colour
-		return chromaColorToRGBA(c)
-	case 4: // Blue
-		c := chromaStyle.Get(chroma.NameFunction).Colour
-		return chromaColorToRGBA(c)
-	case 5: // Magenta
-		c := chromaStyle.Get(chroma.Operator).Colour
-		return chromaColorToRGBA(c)
-	case 6: // Cyan
-		c := chromaStyle.Get(chroma.Name).Colour
-		return chromaColorToRGBA(c)
-	case 7: // White
-		c := chromaStyle.Get(chroma.Text).Colour
-		return chromaColorToRGBA(c)
-	}
-
-	// Fallback to standard ANSI colors
-	return color.RGBA{
-		R: []uint8{0, 205, 0, 205, 0, 205, 205, 229}[code],
-		G: []uint8{0, 0, 205, 205, 0, 0, 205, 229}[code],
-		B: []uint8{0, 0, 0, 0, 205, 205, 205, 229}[code],
-		A: 255,
-	}
+func ansiColor(code int, theme *Theme) color.Color {
+	return theme.GetColor(code)
 }
 
-func ansiBrightColor(code int, style *TermStyle) color.Color {
-	// Get the chroma style
-	chromaStyle := styles.Get(style.Theme)
-	if chromaStyle == nil {
-		chromaStyle = styles.Fallback
-	}
-
-	// Map to chroma theme colors with increased brightness
-	baseColor := ansiColor(code, style)
-	if rgba, ok := baseColor.(color.RGBA); ok {
-		// Increase brightness by 20%
-		return color.RGBA{
-			R: uint8(min(255, int(float64(rgba.R)*1.2))),
-			G: uint8(min(255, int(float64(rgba.G)*1.2))),
-			B: uint8(min(255, int(float64(rgba.B)*1.2))),
-			A: rgba.A,
-		}
-	}
-
-	// Fallback to standard bright colors
-	return color.RGBA{
-		R: []uint8{127, 255, 0, 255, 0, 255, 0, 255}[code],
-		G: []uint8{127, 0, 255, 255, 0, 0, 255, 255}[code],
-		B: []uint8{127, 0, 0, 0, 255, 255, 255, 255}[code],
-		A: 255,
-	}
+func ansiBrightColor(code int, theme *Theme) color.Color {
+	return theme.GetColor(code + 8) // Bright colors start at index 8
 }
 
 func min(a, b int) int {
@@ -724,13 +784,4 @@ func max(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func chromaColorToRGBA(c chroma.Colour) color.RGBA {
-	return color.RGBA{
-		R: c.Red(),
-		G: c.Green(),
-		B: c.Blue(),
-		A: 255,
-	}
 }

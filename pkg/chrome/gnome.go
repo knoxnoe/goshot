@@ -168,7 +168,7 @@ func registerBreezeTheme() {
 func NewGNOMEChrome(style GNOMEStyle, opts ...ChromeOption) *GNOMEChrome {
 	chrome := &GNOMEChrome{
 		cornerRadius: gnomeDefaultCornerRadius,
-		title:        "Screenshot",
+		title:        "",
 		titleBar:     true,
 		themeName:    "adwaita",
 		variant:      ThemeVariantLight,

@@ -121,7 +121,7 @@ func registerWindowsXPThemes() {
 func NewWindowsChrome(style WindowsStyle, opts ...ChromeOption) *WindowsChrome {
 	chrome := &WindowsChrome{
 		cornerRadius: winDefaultCornerRadius,
-		title:        "Screenshot",
+		title:        "",
 		titleBar:     true,
 		themeName:    string(style),
 		variant:      ThemeVariantLight,

@@ -188,7 +188,7 @@ func registerMacLegacyThemes() {
 func NewMacChrome(style MacStyle, opts ...ChromeOption) *MacChrome {
 	chrome := &MacChrome{
 		cornerRadius: macDefaultCornerRadius,
-		title:        "Screenshot",
+		title:        "",
 		titleBar:     true,
 		themeName:    string(style),
 		variant:      ThemeVariantLight,

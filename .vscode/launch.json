@@ -10,8 +10,8 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/goshot",
-            "args": ["./pkg/version/version.go", "--language", "go", "--font", "Lato"]
+            "program": "${workspaceFolder}/cmd/examples/06_term/",
+            "args": []
         }
     ]
 }

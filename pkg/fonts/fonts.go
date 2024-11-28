@@ -23,12 +23,10 @@ import (
 //go:embed embedded
 var embeddedFonts embed.FS
 
-// fontCache caches loaded fonts to avoid repeated disk access
+// fontCache caches loaded fonts to avoid re-parsing font files
 var (
-	fontCache      = make(map[string]*Font)
-	fontCacheMu    sync.RWMutex
-	variantCache   = make(map[string]*Font)
-	variantCacheMu sync.RWMutex
+	fontCache   = make(map[string][]*Font)
+	fontCacheMu sync.RWMutex
 )
 
 // FontStretch represents the width/stretch of a font
@@ -89,6 +87,7 @@ type Font struct {
 	FilePath    string         // Path to the font file on disk
 	Filename    string         // Name of the font file
 	IsMonospace bool           // Whether the font is monospaced
+	Style       FontStyle      // Font style
 	maxWidth    fixed.Int26_6  // Maximum glyph width (lazy loaded)
 	maxWidthMu  sync.Once      // Ensures maxWidth is computed only once
 }
@@ -110,7 +109,24 @@ func (f *Font) GetFace(size float64, style *FontStyle) (*Face, error) {
 		}
 	}
 
-	face, err := opentype.NewFace(f.Font, &opentype.FaceOptions{
+	// Try to find a font variant that matches our style
+	variants, err := GetFontVariants(f.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get font variants: %v", err)
+	}
+
+	// Find the best matching variant
+	var bestVariant *Font
+	bestScore := -1
+	for _, variant := range variants {
+		score := matchStyleScore(variant.Style, *style)
+		if score > bestScore {
+			bestScore = score
+			bestVariant = variant
+		}
+	}
+
+	face, err := opentype.NewFace(bestVariant.Font, &opentype.FaceOptions{
 		Size:    size,
 		DPI:     72,
 		Hinting: font.HintingFull,
@@ -120,8 +136,8 @@ func (f *Font) GetFace(size float64, style *FontStyle) (*Face, error) {
 	}
 
 	return &Face{
-		Font:  f,
-		Style: *style,
+		Font:  bestVariant,
+		Style: bestVariant.Style,
 		Size:  size,
 		Face:  face,
 	}, nil
@@ -129,10 +145,8 @@ func (f *Font) GetFace(size float64, style *FontStyle) (*Face, error) {
 
 // Close releases the resources used by the face
 func (f *Face) Close() {
-	if f.Face != nil {
-		if closer, ok := f.Face.(io.Closer); ok {
-			closer.Close()
-		}
+	if closer, ok := f.Face.(io.Closer); ok {
+		closer.Close()
 	}
 }
 
@@ -400,6 +414,7 @@ func (sfs systemFontFS) Open(name string) (fs.File, error) {
 	return os.Open(filepath.Join(sfs.root, name))
 }
 
+// GetFont returns a font with the specified name and style
 func GetFont(name string, style *FontStyle) (*Font, error) {
 	if name == "" {
 		return nil, fmt.Errorf("font name cannot be empty")
@@ -408,20 +423,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 	// Normalize font name
 	name = cleanFontName(name)
 
-	cacheKey := name
-	if style != nil {
-		cacheKey = fmt.Sprintf("%s-%d-%d-%v-%v", name, style.Weight, style.Stretch, style.Italic, style.Mono)
-	}
-
-	// Check variant cache first
-	variantCacheMu.RLock()
-	if cached, ok := variantCache[cacheKey]; ok {
-		variantCacheMu.RUnlock()
-		return cached, nil
-	}
-	variantCacheMu.RUnlock()
-
-	// Try to load the requested font
+	// Try to load all variants of the font
 	variants, err := GetFontVariants(name)
 	if err != nil || len(variants) == 0 {
 		return nil, fmt.Errorf("font %s not found", name)
@@ -432,7 +434,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 	if style == nil {
 		// Find regular variant
 		for _, font := range variants {
-			if font.Font != nil {
+			if font.Style.Weight == WeightRegular && !font.Style.Italic {
 				selected = font
 				break
 			}
@@ -444,7 +446,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 		// Find best matching style
 		var bestScore int
 		for _, font := range variants {
-			score := matchStyleScore(*style, FontStyle{})
+			score := matchStyleScore(*style, font.Style)
 			if score > bestScore {
 				selected = font
 				bestScore = score
@@ -452,13 +454,7 @@ func GetFont(name string, style *FontStyle) (*Font, error) {
 		}
 	}
 
-	fmt.Printf("Selected font: %v\n", selected)
-
 	if selected != nil {
-		// Cache the result
-		variantCacheMu.Lock()
-		variantCache[cacheKey] = selected
-		variantCacheMu.Unlock()
 		return selected, nil
 	}
 
@@ -474,45 +470,16 @@ const (
 )
 
 // GetFallback returns either JetBrainsMono or Inter as the fallback font
-func GetFallback(variant FallbackVariant) (*Font, error) {
-	var filename string
-	var fontName string
-
+func GetFallback(variant FallbackVariant) (font *Font, err error) {
 	switch variant {
 	case FallbackMono:
-		filename = "JetBrainsMono-Regular.ttf"
-		fontName = "JetBrainsMono"
+		font, err = GetFont("JetBrainsMonoNerdFont", nil) // Let GetFont handle style selection
 	case FallbackSans:
-		filename = "Inter-Regular.ttf"
-		fontName = "Inter"
+		font, err = GetFont("Inter", nil) // Let GetFont handle style selection
 	default:
 		return nil, fmt.Errorf("invalid fallback variant")
 	}
-
-	data, err := embeddedFonts.ReadFile("embedded/" + filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read fallback font: %v", err)
-	}
-
-	font, err := opentype.Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse fallback font: %v", err)
-	}
-
-	// Convert to truetype to check if monospace
-	ttf, err := truetype.Parse(data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse as truetype: %v", err)
-	}
-
-	f := &Font{
-		Name:        fontName,
-		Font:        font,
-		Filename:    filename,
-		IsMonospace: detectMonospace(ttf),
-	}
-
-	return f, nil
+	return
 }
 
 // IsFontAvailable is a super fast check to see if the given font is available on the system
@@ -526,20 +493,22 @@ func IsFontAvailable(name string) bool {
 func matchStyleScore(a, b FontStyle) int {
 	score := 0
 
-	// Weight match (closer weights = higher score)
+	// Weight matching (max 100 points)
 	weightDiff := abs(int(a.Weight) - int(b.Weight))
-	score += 100 - (weightDiff * 10)
+	score += 100 - weightDiff*10 // Lose 10 points for each step away from desired weight
 
-	// Stretch match (closer stretches = higher score)
+	// Stretch matching (max 50 points)
 	stretchDiff := abs(int(a.Stretch) - int(b.Stretch))
-	score += 100 - (stretchDiff * 10)
+	score += 50 - stretchDiff*5 // Lose 5 points for each step away from desired stretch
 
-	// Exact style matches
+	// Exact italic match (50 points)
 	if a.Italic == b.Italic {
 		score += 50
 	}
+
+	// Exact mono match (25 points)
 	if a.Mono == b.Mono {
-		score += 50
+		score += 25
 	}
 
 	return score
@@ -559,7 +528,7 @@ func GetFontVariants(name string) ([]*Font, error) {
 		if cached == nil {
 			return nil, fmt.Errorf("font %s not found", name)
 		}
-		return []*Font{cached}, nil
+		return cached, nil
 	}
 	fontCacheMu.RUnlock()
 
@@ -596,6 +565,7 @@ func GetFontVariants(name string) ([]*Font, error) {
 					Font:        font,
 					Filename:    entry.Name(),
 					IsMonospace: detectMonospace(ttf),
+					Style:       extractFontStyle(entry.Name()),
 				}
 				variants = append(variants, variant)
 			}
@@ -656,6 +626,7 @@ func GetFontVariants(name string) ([]*Font, error) {
 					Font:        font,
 					FilePath:    path,
 					IsMonospace: detectMonospace(ttf),
+					Style:       extractFontStyle(filepath.Base(path)),
 				}
 				variants = append(variants, variant)
 			}
@@ -674,7 +645,7 @@ func GetFontVariants(name string) ([]*Font, error) {
 
 	// Cache the results
 	fontCacheMu.Lock()
-	fontCache[name] = variants[0]
+	fontCache[name] = variants
 	fontCacheMu.Unlock()
 
 	return variants, nil
@@ -682,65 +653,57 @@ func GetFontVariants(name string) ([]*Font, error) {
 
 // extractFontStyle analyzes a font filename to determine its style
 func extractFontStyle(filename string) FontStyle {
-	nameLower := strings.ToLower(filename)
-	style := FontStyle{}
+	filename = strings.ToLower(filename)
+	style := FontStyle{
+		Weight:  WeightRegular,
+		Stretch: StretchNormal,
+	}
 
-	// Check for weight indicators
+	// Common weight indicators in filenames
 	switch {
-	case strings.Contains(nameLower, "thin"):
+	case strings.Contains(filename, "thin"):
 		style.Weight = WeightThin
-	case strings.Contains(nameLower, "extralight"):
+	case strings.Contains(filename, "extralight") || strings.Contains(filename, "extra-light") || strings.Contains(filename, "ultra-light") || strings.Contains(filename, "ultralight"):
 		style.Weight = WeightExtraLight
-	case strings.Contains(nameLower, "light"):
+	case strings.Contains(filename, "light"):
 		style.Weight = WeightLight
-	case strings.Contains(nameLower, "medium"):
+	case strings.Contains(filename, "regular") || strings.Contains(filename, "normal"):
+		style.Weight = WeightRegular
+	case strings.Contains(filename, "medium"):
 		style.Weight = WeightMedium
-	case strings.Contains(nameLower, "semibold"), strings.Contains(nameLower, "demibold"):
+	case strings.Contains(filename, "semibold") || strings.Contains(filename, "semi-bold") || strings.Contains(filename, "demibold") || strings.Contains(filename, "demi-bold"):
 		style.Weight = WeightSemiBold
-	case strings.Contains(nameLower, "bold"):
-		if strings.Contains(nameLower, "extrabold") || strings.Contains(nameLower, "ultrabold") {
-			style.Weight = WeightExtraBold
-		} else {
-			style.Weight = WeightBold
-		}
-	case strings.Contains(nameLower, "black"), strings.Contains(nameLower, "heavy"):
+	case strings.Contains(filename, "extrabold") || strings.Contains(filename, "extra-bold") || strings.Contains(filename, "ultra-bold") || strings.Contains(filename, "ultrabold"):
+		style.Weight = WeightExtraBold
+	case strings.Contains(filename, "black") || strings.Contains(filename, "heavy"):
 		style.Weight = WeightBlack
-	default:
-		// Only set regular weight if we don't find any other weight indicators
-		// and this is not an italic font
-		if !strings.Contains(nameLower, "italic") && !strings.Contains(nameLower, "oblique") {
-			style.Weight = WeightRegular
-		}
+	case strings.Contains(filename, "bold"):
+		style.Weight = WeightBold
 	}
 
-	// Check for stretch indicators
+	// Common stretch indicators
 	switch {
-	case strings.Contains(nameLower, "ultracondensed"):
+	case strings.Contains(filename, "ultracondensed") || strings.Contains(filename, "ultra-condensed"):
 		style.Stretch = StretchUltraCondensed
-	case strings.Contains(nameLower, "extracondensed"):
+	case strings.Contains(filename, "extracondensed") || strings.Contains(filename, "extra-condensed"):
 		style.Stretch = StretchExtraCondensed
-	case strings.Contains(nameLower, "condensed"):
+	case strings.Contains(filename, "condensed"):
 		style.Stretch = StretchCondensed
-	case strings.Contains(nameLower, "semicondensed"):
+	case strings.Contains(filename, "semicondensed") || strings.Contains(filename, "semi-condensed"):
 		style.Stretch = StretchSemiCondensed
-	case strings.Contains(nameLower, "expanded"):
-		if strings.Contains(nameLower, "ultraexpanded") {
-			style.Stretch = StretchUltraExpanded
-		} else if strings.Contains(nameLower, "extraexpanded") {
-			style.Stretch = StretchExtraExpanded
-		} else {
-			style.Stretch = StretchExpanded
-		}
-	case strings.Contains(nameLower, "semiexpanded"):
-		style.Stretch = StretchSemiExpanded
-	default:
-		// Only set regular stretch if we don't find any other stretch indicators
-		style.Stretch = StretchNormal
+	case strings.Contains(filename, "expanded"):
+		style.Stretch = StretchExpanded
+	case strings.Contains(filename, "extraexpanded") || strings.Contains(filename, "extra-expanded"):
+		style.Stretch = StretchExtraExpanded
+	case strings.Contains(filename, "ultraexpanded") || strings.Contains(filename, "ultra-expanded"):
+		style.Stretch = StretchUltraExpanded
 	}
 
-	// Check for style indicators
-	style.Italic = strings.Contains(nameLower, "italic") || strings.Contains(nameLower, "oblique")
-	style.Mono = strings.Contains(nameLower, "mono") || strings.Contains(nameLower, "console")
+	// Italic/Oblique detection
+	style.Italic = strings.Contains(filename, "italic") || strings.Contains(filename, "oblique")
+
+	// Mono detection
+	style.Mono = strings.Contains(filename, "mono") || strings.Contains(filename, "console") || strings.Contains(filename, "typewriter")
 
 	return style
 }
@@ -995,6 +958,6 @@ func (m *multiFS) Open(name string) (fs.File, error) {
 // ClearCache clears the font cache
 func ClearCache() {
 	fontCacheMu.Lock()
-	fontCache = make(map[string]*Font)
+	fontCache = make(map[string][]*Font)
 	fontCacheMu.Unlock()
 }
