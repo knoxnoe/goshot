@@ -1,14 +1,19 @@
 package code
 
 import (
+	"embed"
 	"fmt"
 	"image/color"
+	"path/filepath"
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
 	"github.com/alecthomas/chroma/v2/lexers"
 	"github.com/alecthomas/chroma/v2/styles"
 )
+
+//go:embed themes/*.xml
+var themesFS embed.FS
 
 // Token represents a syntax highlighted token
 type Token struct {
@@ -33,6 +38,7 @@ type HighlightedCode struct {
 	GutterColor      color.Color // Color for the gutter (line numbers background)
 	LineNumberColor  color.Color // Color for line numbers
 	HighlightColor   color.Color // Color for highlighted lines
+	CommentColor     color.Color // Color for comments
 	HighlightedLines []int       // Lines that should be highlighted
 }
 
@@ -106,6 +112,7 @@ func Highlight(code string, opts *CodeStyle) (*HighlightedCode, error) {
 	gutterColor := getGutterColor(style)
 	lineNumberColor := getLineNumberColor(style)
 	highlightColor := getHighlightColor(style)
+	commentColor := getColorFromChroma(style.Get(chroma.Comment).Colour)
 
 	formatter := &customFormatter{
 		highlightedLines: make(map[int]bool),
@@ -115,6 +122,7 @@ func Highlight(code string, opts *CodeStyle) (*HighlightedCode, error) {
 			GutterColor:     gutterColor,
 			LineNumberColor: lineNumberColor,
 			HighlightColor:  highlightColor,
+			CommentColor:    commentColor,
 		},
 	}
 
@@ -272,4 +280,41 @@ func (f *customFormatter) Format(tokens []chroma.Token, style *chroma.Style) err
 	}
 
 	return nil
+}
+
+// LoadCustomThemes loads all custom themes from the embedded themes directory
+func LoadCustomThemes() error {
+	entries, err := themesFS.ReadDir("themes")
+	if err != nil {
+		return fmt.Errorf("failed to read themes directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".xml") {
+			continue
+		}
+
+		data, err := themesFS.ReadFile(filepath.Join("themes", entry.Name()))
+		if err != nil {
+			return fmt.Errorf("failed to read theme file %s: %w", entry.Name(), err)
+		}
+
+		style, err := chroma.NewXMLStyle(strings.NewReader(string(data)))
+		if err != nil {
+			return fmt.Errorf("failed to parse theme %s: %w", entry.Name(), err)
+		}
+
+		// Register the theme with Chroma
+		styles.Register(style)
+	}
+
+	return nil
+}
+
+// init loads any custom themes when the package is initialized
+func init() {
+	if err := LoadCustomThemes(); err != nil {
+		// Log the error but don't fail - built-in themes will still work
+		fmt.Printf("Warning: Failed to load custom themes: %v\n", err)
+	}
 }

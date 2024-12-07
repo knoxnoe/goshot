@@ -1,7 +1,6 @@
 package code
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
@@ -165,7 +164,7 @@ func drawText(img *image.RGBA, face font.Face, text string, x, y int, col color.
 		metrics := face.Metrics()
 		underlineY := y + metrics.Descent.Round()/2
 		width := font.MeasureString(face, text).Round()
-		
+
 		// Draw a line 1px thick
 		for dy := 0; dy < 1; dy++ {
 			for dx := 0; dx < width; dx++ {
@@ -248,8 +247,12 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		return nil, err
 	}
 
-	// Create ellipsis token with theme color
-	ellipsisToken := color.RGBA{R: 0, G: 0, B: 0, A: 255}
+	// Create ellipsis token with comment color
+	ellipsisToken := Token{
+		Text:   "...",
+		Color:  h.CommentColor,
+		Italic: true, // Comments are typically italic
+	}
 
 	// Filter lines based on ranges and add ellipses
 	var filteredLines []Line
@@ -258,9 +261,10 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		// Add ellipsis at start if first range doesn't start at 1
 		if config.LineRanges[0].Start > 1 {
 			filteredLines = append(filteredLines, Line{
-				Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
+				Tokens: []Token{ellipsisToken},
 			})
-			lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
+			// For the first ellipsis, show the line number that comes before the first range
+			lineNumberMap = append(lineNumberMap, config.LineRanges[0].Start-1)
 		}
 
 		// Process each range
@@ -278,18 +282,20 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 			// Add ellipsis between ranges
 			if i < len(config.LineRanges)-1 && lr.End+1 < config.LineRanges[i+1].Start {
 				filteredLines = append(filteredLines, Line{
-					Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
+					Tokens: []Token{ellipsisToken},
 				})
-				lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
+				// For ellipsis between ranges, show the line number that comes after the previous range
+				lineNumberMap = append(lineNumberMap, lr.End+1)
 			}
 		}
 
 		// Add ellipsis at end if last range doesn't end at the last line
 		if config.LineRanges[len(config.LineRanges)-1].End < len(lines) {
 			filteredLines = append(filteredLines, Line{
-				Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
+				Tokens: []Token{ellipsisToken},
 			})
-			lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
+			// For the last ellipsis, show the line number that comes after the last range
+			lineNumberMap = append(lineNumberMap, config.LineRanges[len(config.LineRanges)-1].End+1)
 		}
 
 		lines = filteredLines
@@ -459,25 +465,25 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	// Draw line numbers and text
 	currentY = config.PaddingTop
 	for i, tokens := range wrappedLines {
-		originalLineIdx := lineToWrappedMap[i]
-		isFirstWrappedLine := i == 0 || lineToWrappedMap[i-1] != originalLineIdx
 
-		// For ellipsis lines, we don't increment the line number
-		if len(tokens) == 1 && tokens[0].Text == "..." {
-			// Don't show anything in the line number area for ellipsis lines
-			if config.ShowLineNumbers {
-				// Leave gutter empty for ellipsis lines
+		// Draw line numbers if enabled
+		if config.ShowLineNumbers {
+			lineNumber := lineNumberMap[i]
+			lineNumberStr := strconv.Itoa(lineNumber)
+			lineNumberWidth := font.MeasureString(regularFace.Face, lineNumberStr)
+
+			// Get the font face for line numbers
+			face, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
+				Weight:  fonts.WeightRegular,
+				Stretch: fonts.StretchNormal,
+			})
+			if err != nil {
+				return nil, err
 			}
-		} else {
-			if config.ShowLineNumbers && isFirstWrappedLine {
-				// For regular lines, show the actual line number from the map
-				lineNumberStr := fmt.Sprintf("%d", lineNumberMap[originalLineIdx])
-				lineNumberWidth, _ := config.Font.MeasureString(lineNumberStr, config.FontSize, &fonts.FontStyle{
-					Weight:  fonts.WeightRegular,
-					Stretch: fonts.StretchNormal,
-				})
-				drawText(img, regularFace.Face, lineNumberStr, config.PaddingLeft+lineNumberOffset-lineNumberWidth.Round()-config.LineNumberPadding, currentY+metrics.Ascent.Round(), h.LineNumberColor, Token{Text: lineNumberStr})
-			}
+			defer face.Close()
+
+			// Draw the line number
+			drawText(img, regularFace.Face, lineNumberStr, config.PaddingLeft+lineNumberOffset-lineNumberWidth.Round()-config.LineNumberPadding, currentY+metrics.Ascent.Round(), h.LineNumberColor, Token{Text: lineNumberStr})
 		}
 
 		// Draw tokens

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style name="synthwave84">
+  <!-- Base colors -->
+  <entry type="Background" style="bg:#262335"/>
+  <entry type="Text" style="#ffffff"/>
+  <entry type="Error" style="#fe4450"/>
+  <entry type="LineHighlight" style="bg:#463564"/>
+
+  <!-- Comments -->
+  <entry type="Comment" style="#848bbd italic"/>
+  <entry type="CommentMultiline" style="#848bbd italic"/>
+  <entry type="CommentSingle" style="#848bbd italic"/>
+  <entry type="CommentSpecial" style="#848bbd italic"/>
+  
+  <!-- Strings -->
+  <entry type="LiteralString" style="#ff8b39"/>
+  <entry type="LiteralStringDouble" style="#ff8b39"/>
+  <entry type="LiteralStringSingle" style="#ff8b39"/>
+  <entry type="LiteralStringEscape" style="#36f9f6"/>
+  
+  <!-- Numbers -->
+  <entry type="LiteralNumber" style="#f97e72"/>
+  <entry type="LiteralNumberFloat" style="#f97e72"/>
+  <entry type="LiteralNumberInteger" style="#f97e72"/>
+  
+  <!-- Keywords -->
+  <entry type="Keyword" style="#fede5d"/>
+  <entry type="KeywordConstant" style="#f97e72"/>
+  <entry type="KeywordDeclaration" style="#fede5d"/>
+  <entry type="KeywordNamespace" style="#72f1b8"/>
+  <entry type="KeywordType" style="#fede5d"/>
+  
+  <!-- Names -->
+  <entry type="Name" style="#ff7edb"/>
+  <entry type="NameAttribute" style="#fede5d"/>
+  <entry type="NameBuiltin" style="#fe4450"/>
+  <entry type="NameClass" style="#fe4450"/>
+  <entry type="NameConstant" style="#f97e72"/>
+  <entry type="NameDecorator" style="#36f9f6"/>
+  <entry type="NameFunction" style="#36f9f6"/>
+  <entry type="NameTag" style="#72f1b8"/>
+  <entry type="NameVariable" style="#ff7edb"/>
+  <entry type="NameVariableInstance" style="#ff7edb italic"/>
+  
+  <!-- Operators -->
+  <entry type="Operator" style="#fede5d"/>
+  <entry type="OperatorWord" style="#fede5d"/>
+  
+  <!-- Punctuation -->
+  <entry type="Punctuation" style="#b6b1b1"/>
+  
+  <!-- Generic -->
+  <entry type="Generic" style="#ffffff"/>
+  <entry type="GenericDeleted" style="#fe4450"/>
+  <entry type="GenericEmph" style="italic"/>
+  <entry type="GenericError" style="#fe4450"/>
+  <entry type="GenericHeading" style="#ff7edb bold"/>
+  <entry type="GenericInserted" style="#72f1b8"/>
+  <entry type="GenericStrong" style="bold"/>
+  <entry type="GenericSubheading" style="#ff7edb"/>
+  
+  <!-- Whitespace -->
+  <entry type="TextWhitespace" style="#ffffff55"/>
+</style>
