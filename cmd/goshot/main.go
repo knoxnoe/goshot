@@ -355,7 +355,7 @@ func makeAppearanceFlagSet() *pflag.FlagSet {
 	fs.StringVarP(&config.WindowChrome, "chrome", "C", "mac", "Chrome style (mac, windows, gnome)")
 	fs.StringVarP(&config.ChromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
 	fs.BoolVarP(&config.LightMode, "light-mode", "L", false, "Use light mode")
-	fs.StringVarP(&config.Theme, "theme", "t", "seti", "Syntax highlight theme name")
+	fs.StringVarP(&config.Theme, "theme", "t", "ayu-dark", "Syntax highlight theme name")
 	fs.StringVarP(&config.Font, "font", "f", "JetBrainsMonoNerdFont", "Fallback font list (e.g., 'Hack; SimSun=31')")
 	fs.Float64Var(&config.LineHeight, "line-height", 1.0, "Line height")
 	fs.StringVarP(&config.BackgroundColor, "background", "b", "#ABB8C3", "Background color")
