@@ -150,7 +150,7 @@ func (r *CodeRenderer) WithLineHighlightRange(start, end int) *CodeRenderer {
 	return r
 }
 
-func drawText(img *image.RGBA, face font.Face, text string, x, y int, col color.Color) {
+func drawText(img *image.RGBA, face font.Face, text string, x, y int, col color.Color, token Token) {
 	point := fixed.Point26_6{X: fixed.I(x), Y: fixed.I(y)}
 	d := &font.Drawer{
 		Dst:  img,
@@ -159,6 +159,20 @@ func drawText(img *image.RGBA, face font.Face, text string, x, y int, col color.
 		Dot:  point,
 	}
 	d.DrawString(text)
+
+	// Draw underline if needed
+	if token.Underline {
+		metrics := face.Metrics()
+		underlineY := y + metrics.Descent.Round()/2
+		width := font.MeasureString(face, text).Round()
+		
+		// Draw a line 1px thick
+		for dy := 0; dy < 1; dy++ {
+			for dx := 0; dx < width; dx++ {
+				img.Set(x+dx, underlineY+dy, col)
+			}
+		}
+	}
 }
 
 func (r *CodeRenderer) Render() (image.Image, error) {
@@ -168,15 +182,56 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		return nil, err
 	}
 
-	// Get the font face
-	face, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
+	// Get the font face for each style combination we need
+	regularFace, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
 		Weight:  fonts.WeightRegular,
 		Stretch: fonts.StretchNormal,
 	})
 	if err != nil {
 		return nil, err
 	}
-	defer face.Close()
+	defer regularFace.Close()
+
+	boldFace, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
+		Weight:  fonts.WeightBold,
+		Stretch: fonts.StretchNormal,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer boldFace.Close()
+
+	italicFace, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
+		Weight:  fonts.WeightRegular,
+		Stretch: fonts.StretchNormal,
+		Italic:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer italicFace.Close()
+
+	boldItalicFace, err := config.Font.GetFace(config.FontSize, &fonts.FontStyle{
+		Weight:  fonts.WeightBold,
+		Stretch: fonts.StretchNormal,
+		Italic:  true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer boldItalicFace.Close()
+
+	// Function to get the appropriate face based on token style
+	getFaceForToken := func(token Token) font.Face {
+		if token.Bold && token.Italic && !token.NoItalic {
+			return boldItalicFace.Face
+		} else if token.Bold {
+			return boldFace.Face
+		} else if token.Italic && !token.NoItalic {
+			return italicFace.Face
+		}
+		return regularFace.Face
+	}
 
 	// Get lines
 	lines := h.Lines
@@ -194,10 +249,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	}
 
 	// Create ellipsis token with theme color
-	ellipsisToken := Token{
-		Text:  "...",
-		Color: h.LineNumberColor,
-	}
+	ellipsisToken := color.RGBA{R: 0, G: 0, B: 0, A: 255}
 
 	// Filter lines based on ranges and add ellipses
 	var filteredLines []Line
@@ -206,7 +258,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		// Add ellipsis at start if first range doesn't start at 1
 		if config.LineRanges[0].Start > 1 {
 			filteredLines = append(filteredLines, Line{
-				Tokens: []Token{ellipsisToken},
+				Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
 			})
 			lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
 		}
@@ -226,7 +278,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 			// Add ellipsis between ranges
 			if i < len(config.LineRanges)-1 && lr.End+1 < config.LineRanges[i+1].Start {
 				filteredLines = append(filteredLines, Line{
-					Tokens: []Token{ellipsisToken},
+					Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
 				})
 				lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
 			}
@@ -235,7 +287,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		// Add ellipsis at end if last range doesn't end at the last line
 		if config.LineRanges[len(config.LineRanges)-1].End < len(lines) {
 			filteredLines = append(filteredLines, Line{
-				Tokens: []Token{ellipsisToken},
+				Tokens: []Token{Token{Text: "...", Color: ellipsisToken}},
 			})
 			lineNumberMap = append(lineNumberMap, 0) // 0 indicates ellipsis line
 		}
@@ -283,14 +335,14 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	maxTextWidth := config.MaxWidth - config.PaddingLeft - config.PaddingRight - lineNumberOffset
 
 	// Calculate initial dimensions
-	metrics := face.Face.Metrics()
+	metrics := regularFace.Face.Metrics()
 	lineHeight := int(float64(metrics.Height.Round()) * config.LineHeight)
 	maxLineWidth := 0
 
 	// First measure ellipsis width if we have ranges
 	ellipsisWidth := 0
 	if len(config.LineRanges) > 0 {
-		ellipsisWidth = font.MeasureString(face.Face, "...").Round()
+		ellipsisWidth = font.MeasureString(regularFace.Face, "...").Round()
 		if ellipsisWidth > maxLineWidth {
 			maxLineWidth = ellipsisWidth
 		}
@@ -302,7 +354,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	for i, line := range lines {
 		var wrapped [][]Token
 		if len(line.Tokens) > 0 {
-			wrapped = wrapTokens(line.Tokens, face.Face, maxTextWidth, 0)
+			wrapped = wrapTokens(line.Tokens, regularFace.Face, maxTextWidth, 0)
 		} else {
 			// For empty lines, add an empty token list
 			wrapped = [][]Token{{}}
@@ -321,10 +373,10 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 				// Handle tab expansion for width calculation
 				if strings.Contains(token.Text, "\t") {
 					expandedText, newColumn := expandTabs(token.Text, currentColumn, config.TabWidth)
-					lineWidth += font.MeasureString(face.Face, expandedText).Round()
+					lineWidth += font.MeasureString(regularFace.Face, expandedText).Round()
 					currentColumn = newColumn
 				} else {
-					lineWidth += font.MeasureString(face.Face, token.Text).Round()
+					lineWidth += font.MeasureString(regularFace.Face, token.Text).Round()
 					currentColumn += len(token.Text)
 				}
 			}
@@ -424,7 +476,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 					Weight:  fonts.WeightRegular,
 					Stretch: fonts.StretchNormal,
 				})
-				drawText(img, face.Face, lineNumberStr, config.PaddingLeft+lineNumberOffset-lineNumberWidth.Round()-config.LineNumberPadding, currentY+metrics.Ascent.Round(), h.LineNumberColor)
+				drawText(img, regularFace.Face, lineNumberStr, config.PaddingLeft+lineNumberOffset-lineNumberWidth.Round()-config.LineNumberPadding, currentY+metrics.Ascent.Round(), h.LineNumberColor, Token{Text: lineNumberStr})
 			}
 		}
 
@@ -435,12 +487,12 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 			// Handle tab expansion for drawing
 			if strings.Contains(token.Text, "\t") {
 				expandedText, newColumn := expandTabs(token.Text, currentColumn, config.TabWidth)
-				drawText(img, face.Face, expandedText, x, currentY+metrics.Ascent.Round(), token.Color)
-				x += font.MeasureString(face.Face, expandedText).Round()
+				drawText(img, getFaceForToken(token), expandedText, x, currentY+metrics.Ascent.Round(), token.Color, token)
+				x += font.MeasureString(getFaceForToken(token), expandedText).Round()
 				currentColumn = newColumn
 			} else {
-				drawText(img, face.Face, token.Text, x, currentY+metrics.Ascent.Round(), token.Color)
-				x += font.MeasureString(face.Face, token.Text).Round()
+				drawText(img, getFaceForToken(token), token.Text, x, currentY+metrics.Ascent.Round(), token.Color, token)
+				x += font.MeasureString(getFaceForToken(token), token.Text).Round()
 				currentColumn += len(token.Text)
 			}
 		}

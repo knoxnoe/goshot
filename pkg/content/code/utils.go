@@ -12,6 +12,10 @@ import (
 
 func getBackgroundColor(style *chroma.Style) color.Color {
 	bgColor := style.Get(chroma.Background)
+	if bgColor.Background == 0 && bgColor.Colour == 0 {
+		// Default to white background if none is provided
+		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	}
 	return color.RGBA{
 		R: bgColor.Background.Red(),
 		G: bgColor.Background.Green(),
@@ -22,6 +26,28 @@ func getBackgroundColor(style *chroma.Style) color.Color {
 
 func getGutterColor(style *chroma.Style) color.Color {
 	lineTableColor := style.Get(chroma.LineTable)
+	if lineTableColor.Background == 0 {
+		// If no gutter color is provided, make it slightly different from the background
+		bg := getBackgroundColor(style)
+		bgRGBA := bg.(color.RGBA)
+		if isLight(chroma.Colour(uint32(bgRGBA.R)<<16 | uint32(bgRGBA.G)<<8 | uint32(bgRGBA.B))) {
+			// For light backgrounds, make gutter slightly darker
+			return color.RGBA{
+				R: max(0, bgRGBA.R-20),
+				G: max(0, bgRGBA.G-20),
+				B: max(0, bgRGBA.B-20),
+				A: 255,
+			}
+		} else {
+			// For dark backgrounds, make gutter slightly lighter
+			return color.RGBA{
+				R: min(255, bgRGBA.R+20),
+				G: min(255, bgRGBA.G+20),
+				B: min(255, bgRGBA.B+20),
+				A: 255,
+			}
+		}
+	}
 	return color.RGBA{
 		R: lineTableColor.Background.Red(),
 		G: lineTableColor.Background.Green(),
@@ -32,6 +58,26 @@ func getGutterColor(style *chroma.Style) color.Color {
 
 func getLineNumberColor(style *chroma.Style) color.Color {
 	lineNumColor := style.Get(chroma.LineNumbers)
+	if lineNumColor.Colour == 0 {
+		// If no line number color is provided, make it a muted version of the text color
+		textColor := style.Get(chroma.Text)
+		if textColor.Colour == 0 {
+			// If no text color either, base it on background
+			bg := getBackgroundColor(style)
+			bgRGBA := bg.(color.RGBA)
+			if isLight(chroma.Colour(uint32(bgRGBA.R)<<16 | uint32(bgRGBA.G)<<8 | uint32(bgRGBA.B))) {
+				return color.RGBA{R: 110, G: 110, B: 110, A: 255}
+			} else {
+				return color.RGBA{R: 145, G: 145, B: 145, A: 255}
+			}
+		}
+		return color.RGBA{
+			R: textColor.Colour.Red(),
+			G: textColor.Colour.Green(),
+			B: textColor.Colour.Blue(),
+			A: 180, // Make it slightly transparent
+		}
+	}
 	return color.RGBA{
 		R: lineNumColor.Colour.Red(),
 		G: lineNumColor.Colour.Green(),
@@ -88,12 +134,31 @@ func isLight(c chroma.Colour) bool {
 }
 
 func getColorFromChroma(c chroma.Colour) color.Color {
+	if c == 0 {
+		// Default to black text if no color is provided
+		return color.RGBA{R: 74, G: 74, B: 74, A: 255}
+	}
 	return color.RGBA{
 		R: c.Red(),
 		G: c.Green(),
 		B: c.Blue(),
 		A: 255,
 	}
+}
+
+// Helper functions for color manipulation
+func max(a, b uint8) uint8 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a, b uint8) uint8 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // wrapTokens splits tokens into multiple lines if they exceed maxWidth
@@ -248,6 +313,13 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 	}
 
 	return result
+}
+
+func createTokenFromText(text string, color color.Color) Token {
+	return Token{
+		Text:  text,
+		Color: color,
+	}
 }
 
 func validateLineRanges(lines []Line, ranges []content.LineRange) error {

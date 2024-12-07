@@ -77,7 +77,7 @@ type Config struct {
 	// Appearance
 	WindowChrome       string
 	ChromeThemeName    string
-	DarkMode           bool
+	LightMode          bool
 	Theme              string
 	Language           string
 	Font               string
@@ -353,11 +353,11 @@ func makeAppearanceFlagSet() *pflag.FlagSet {
 	fs := pflag.NewFlagSet("appearance", pflag.ContinueOnError)
 	fs.StringVarP(&config.WindowChrome, "chrome", "C", "mac", "Chrome style (mac, windows, gnome)")
 	fs.StringVarP(&config.ChromeThemeName, "chrome-theme", "T", "", "Chrome theme name")
-	fs.BoolVarP(&config.DarkMode, "dark-mode", "d", false, "Use dark mode")
-	fs.StringVarP(&config.Theme, "theme", "t", "dracula", "Syntax highlight theme name")
+	fs.BoolVarP(&config.LightMode, "light-mode", "L", false, "Use light mode")
+	fs.StringVarP(&config.Theme, "theme", "t", "seti", "Syntax highlight theme name")
 	fs.StringVarP(&config.Font, "font", "f", "JetBrainsMonoNerdFont", "Fallback font list (e.g., 'Hack; SimSun=31')")
 	fs.Float64Var(&config.LineHeight, "line-height", 1.0, "Line height")
-	fs.StringVarP(&config.BackgroundColor, "background", "b", "#aaaaff", "Background color")
+	fs.StringVarP(&config.BackgroundColor, "background", "b", "#ABB8C3", "Background color")
 	fs.StringVar(&config.BackgroundImage, "background-image", "", "Background image path")
 	fs.StringVar(&config.BackgroundImageFit, "background-image-fit", "cover", "Background image fit (contain, cover, fill, stretch, tile)")
 	fs.Float64Var(&config.CornerRadius, "corner-radius", 10.0, "Corner radius of the image")
@@ -395,7 +395,7 @@ func initRootConfig() {
 	appearanceFlags := makeAppearanceFlagSet()
 	appearanceFlags.StringVarP(&config.Language, "language", "l", "", "Language for syntax highlighting (e.g., 'Rust' or 'rs')")
 	appearanceFlags.BoolVar(&config.NoLineNumbers, "no-line-number", false, "Hide line numbers")
-	appearanceFlags.StringArrayVarP(&config.LineRanges, "line-range", "r", []string{}, "Line ranges to render (e.g., '1..5' or '..10)")
+	appearanceFlags.StringArrayVarP(&config.LineRanges, "line-range", "r", []string{}, "Line ranges to render (e.g., '1..5' or '..10')")
 	appearanceFlags.StringArrayVarP(&config.HighlightLines, "line-highlight", "R", []string{}, "Line ranges to highlight (e.g., '1..5' or '..10')")
 	rootCmd.Flags().AddFlagSet(appearanceFlags)
 	rfg[appearanceFlags] = "appearance"
@@ -403,8 +403,8 @@ func initRootConfig() {
 	// Layout flags
 	layoutFlags := makeLayoutFlagSet()
 	layoutFlags.IntVar(&config.LinePadding, "line-pad", 2, "Padding between lines")
-	layoutFlags.IntVar(&config.PadHoriz, "pad-horiz", 80, "Horizontal padding")
-	layoutFlags.IntVar(&config.PadVert, "pad-vert", 100, "Vertical padding")
+	layoutFlags.IntVar(&config.PadHoriz, "pad-horiz", 60, "Horizontal padding")
+	layoutFlags.IntVar(&config.PadVert, "pad-vert", 50, "Vertical padding")
 	layoutFlags.IntVar(&config.CodePadTop, "code-pad-top", 10, "Code top padding")
 	layoutFlags.IntVar(&config.CodePadBottom, "code-pad-bottom", 10, "Code bottom padding")
 	layoutFlags.IntVar(&config.CodePadLeft, "code-pad-left", 10, "Code left padding")

@@ -46,10 +46,11 @@ const (
 
 // FontStyle represents the style of a font
 type FontStyle struct {
-	Weight  FontWeight  // Font weight
-	Stretch FontStretch // Font width/stretch
-	Italic  bool        // Whether the font is italic
-	Mono    bool        // Whether the font is monospaced
+	Weight    FontWeight  // Font weight
+	Stretch   FontStretch // Font width/stretch
+	Italic    bool        // Whether the font is italic
+	Underline bool        // Whether the font should be underlined
+	Mono      bool        // Whether the font is monospaced
 }
 
 // FontWeight represents the weight of a font
@@ -506,6 +507,11 @@ func matchStyleScore(a, b FontStyle) int {
 		score += 50
 	}
 
+	// Exact underline match (50 points)
+	if a.Underline == b.Underline {
+		score += 50
+	}
+
 	// Exact mono match (25 points)
 	if a.Mono == b.Mono {
 		score += 25
@@ -702,6 +708,9 @@ func extractFontStyle(filename string) FontStyle {
 	// Italic/Oblique detection
 	style.Italic = strings.Contains(filename, "italic") || strings.Contains(filename, "oblique")
 
+	// Underline detection
+	style.Underline = strings.Contains(filename, "underline")
+
 	// Mono detection
 	style.Mono = strings.Contains(filename, "mono") || strings.Contains(filename, "console") || strings.Contains(filename, "typewriter")
 
@@ -825,6 +834,7 @@ func cleanFontName(name string) string {
 		"Oblique",
 		"Mono",
 		"Console",
+		"Underline",
 	}
 
 	// Common separators

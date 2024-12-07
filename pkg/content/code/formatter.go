@@ -10,12 +10,14 @@ import (
 	"github.com/alecthomas/chroma/v2/styles"
 )
 
-// Token represents a syntax highlighted token with its style information
+// Token represents a syntax highlighted token
 type Token struct {
-	Text   string      // The text content
-	Color  color.Color // The color to render the token in
-	Bold   bool        // Whether to render the token in bold
-	Italic bool        // Whether to render the token in italic
+	Text      string
+	Color     color.Color
+	Bold      bool
+	Italic    bool
+	Underline bool
+	NoItalic  bool
 }
 
 // Line represents a single line of highlighted code
@@ -175,13 +177,14 @@ type customFormatter struct {
 	currentColumn    int // Track current column position for tab expansion
 }
 
-func (f *customFormatter) createToken(text string, tokenType chroma.TokenType, style *chroma.Style) Token {
-	entry := style.Get(tokenType)
+func (f *customFormatter) createToken(text string, entry chroma.StyleEntry) Token {
 	return Token{
-		Text:   text,
-		Color:  getColorFromChroma(entry.Colour),
-		Bold:   entry.Bold == chroma.Yes,
-		Italic: entry.Italic == chroma.Yes,
+		Text:      text,
+		Color:     getColorFromChroma(entry.Colour),
+		Bold:      entry.Bold == chroma.Yes,
+		Italic:    entry.Italic == chroma.Yes && !entry.NoInherit,
+		Underline: entry.Underline == chroma.Yes,
+		NoItalic:  entry.NoInherit,
 	}
 }
 
@@ -193,7 +196,9 @@ func (f *customFormatter) addLine(line Line) {
 }
 
 func (f *customFormatter) addToken(text string, tokenType chroma.TokenType, style *chroma.Style) {
-	if text == "" {
+	// Handle newlines
+	if newLine, hasNewline := f.processNewlines(text, tokenType, style); hasNewline {
+		f.currentLine = newLine
 		return
 	}
 
@@ -201,30 +206,10 @@ func (f *customFormatter) addToken(text string, tokenType chroma.TokenType, styl
 	expandedText, newColumn := expandTabs(text, f.currentColumn, f.tabWidth)
 	f.currentColumn = newColumn
 
-	// Check if this token should be joined with the previous token
-	if len(f.currentLine.Tokens) > 0 && shouldJoinTokens(tokenType) {
-		lastToken := &f.currentLine.Tokens[len(f.currentLine.Tokens)-1]
-		// Only join if the colors match
-		if lastToken.Color == f.createToken(expandedText, tokenType, style).Color {
-			lastToken.Text += expandedText
-			return
-		}
-	}
-
 	// Add the token with expanded text
 	if expandedText != "" {
-		f.currentLine.Tokens = append(f.currentLine.Tokens, f.createToken(expandedText, tokenType, style))
+		f.currentLine.Tokens = append(f.currentLine.Tokens, f.createToken(expandedText, style.Get(tokenType)))
 	}
-}
-
-func shouldJoinTokens(tokenType chroma.TokenType) bool {
-	// Join punctuation tokens
-	return tokenType == chroma.Punctuation ||
-		strings.Contains(tokenType.String(), "Punctuation") ||
-		strings.Contains(tokenType.String(), "Operator") ||
-		strings.Contains(tokenType.String(), "Parenthesis") ||
-		strings.Contains(tokenType.String(), "Bracket") ||
-		strings.Contains(tokenType.String(), "Brace")
 }
 
 func (f *customFormatter) processNewlines(text string, tokenType chroma.TokenType, style *chroma.Style) (Line, bool) {
@@ -249,7 +234,7 @@ func (f *customFormatter) processNewlines(text string, tokenType chroma.TokenTyp
 	if parts[lastIndex] != "" {
 		expandedText, col := expandTabs(parts[lastIndex], 0, f.tabWidth)
 		if expandedText != "" {
-			nextLine.Tokens = append(nextLine.Tokens, f.createToken(expandedText, tokenType, style))
+			nextLine.Tokens = append(nextLine.Tokens, f.createToken(expandedText, style.Get(tokenType)))
 			f.currentColumn = col
 		}
 	} else {

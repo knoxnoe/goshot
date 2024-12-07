@@ -355,9 +355,9 @@ func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 	canvas := render.NewCanvas()
 
 	// Set window chrome
-	themeVariant := chrome.ThemeVariantLight
-	if config.DarkMode {
-		themeVariant = chrome.ThemeVariantDark
+	themeVariant := chrome.ThemeVariantDark
+	if config.LightMode {
+		themeVariant = chrome.ThemeVariantLight
 	}
 
 	if config.NoWindowControls {
@@ -425,7 +425,7 @@ func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 		bg = background.
 			NewImageBackground(backgroundImage).
 			WithScaleMode(fit).
-			WithPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
+			WithPaddingDetailed(config.PadVert, config.PadHoriz, config.PadVert, config.PadHoriz)
 	} else if config.GradientType != "" {
 		stops, err := parseGradientStops(config.GradientStops)
 		if err != nil {
@@ -457,7 +457,7 @@ func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 			WithCenter(config.GradientCenterX, config.GradientCenterY).
 			WithIntensity(config.GradientIntensity).
 			WithCenter(config.GradientCenterX, config.GradientCenterY).
-			WithPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
+			WithPaddingDetailed(config.PadVert, config.PadHoriz, config.PadVert, config.PadHoriz)
 	} else if config.BackgroundColor != "" {
 		// Parse background color
 		var bgColor color.Color
@@ -473,7 +473,7 @@ func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 
 		bg = background.NewColorBackground().
 			WithColor(bgColor).
-			WithPaddingDetailed(config.PadHoriz, config.PadVert, config.PadHoriz, config.PadVert)
+			WithPaddingDetailed(config.PadVert, config.PadHoriz, config.PadVert, config.PadHoriz)
 	}
 
 	if bg != nil {
