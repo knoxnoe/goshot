@@ -56,7 +56,7 @@ func DefaultRenderer(input string) *CodeRenderer {
 		Language:          "go",
 		Font:              font,
 		FontSize:          12,
-		LineHeight:        1.2,
+		LineHeight:        1.0,
 		PaddingLeft:       10,
 		PaddingRight:      10,
 		PaddingTop:        10,

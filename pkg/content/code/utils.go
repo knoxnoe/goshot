@@ -252,12 +252,23 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 
 func validateLineRanges(lines []Line, ranges []content.LineRange) error {
 	if len(ranges) > 0 {
-		for _, lr := range ranges {
-			if lr.Start > len(lines) {
-				return fmt.Errorf("start line number %d is out of bounds (max: %d)", lr.Start, len(lines))
+		for i := range ranges {
+			// If start is <= 1, set it to 1
+			if ranges[i].Start <= 1 {
+				ranges[i].Start = 1
 			}
-			if lr.End > len(lines) {
-				return fmt.Errorf("end line number %d is out of bounds (max: %d)", lr.End, len(lines))
+
+			// If end is <= 1, set it to the total number of lines
+			if ranges[i].End <= 1 {
+				ranges[i].End = len(lines)
+			}
+
+			// Validate bounds after adjustment
+			if ranges[i].Start > len(lines) {
+				return fmt.Errorf("start line number %d is out of bounds (max: %d)", ranges[i].Start, len(lines))
+			}
+			if ranges[i].End > len(lines) {
+				return fmt.Errorf("end line number %d is out of bounds (max: %d)", ranges[i].End, len(lines))
 			}
 		}
 	}
@@ -298,6 +309,11 @@ func expandTabs(text string, currentColumn, tabWidth int) (string, int) {
 
 	var result strings.Builder
 	col := currentColumn
+
+	// Default to 4 spaces per tab if tabWidth is 0 or not set
+	if tabWidth <= 0 {
+		tabWidth = 4
+	}
 
 	for _, ch := range text {
 		if ch == '\t' {

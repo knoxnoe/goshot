@@ -51,13 +51,11 @@ func parseHexColor(hex string) (color.Color, error) {
 	return color.RGBA{R: r, G: g, B: b, A: a}, nil
 }
 
-func parseLineRanges(input []string) ([]content.LineRange, error) {
-	var result []content.LineRange
-
+func parseLineRanges(input []string) (result []content.LineRange, err error) {
 	for _, part := range input {
-		parts := strings.Split(part, "-")
+		parts := strings.Split(part, "..")
 		if len(parts) > 2 {
-			return nil, fmt.Errorf("invalid highlight line format: %s; expected start and end line numbers (e.g., 1-5)", part)
+			return nil, fmt.Errorf("invalid highlight line format: %s; expected start and end line numbers (e.g., ..5)", part)
 		}
 
 		if len(parts) == 1 {
@@ -67,19 +65,28 @@ func parseLineRanges(input []string) ([]content.LineRange, error) {
 			}
 			result = append(result, content.LineRange{Start: num, End: num})
 		} else {
-			start, err := strconv.Atoi(strings.TrimSpace(parts[0]))
-			if err != nil {
-				return nil, fmt.Errorf("invalid start line number: %s", err)
+			var start, end int
+			if parts[0] == "" {
+				start = 1
+			} else {
+				start, err = strconv.Atoi(strings.TrimSpace(parts[0]))
+				if err != nil {
+					return nil, fmt.Errorf("invalid start line number: %s", err)
+				}
 			}
-			end, err := strconv.Atoi(strings.TrimSpace(parts[1]))
-			if err != nil {
-				return nil, fmt.Errorf("invalid end line number: %s", err)
+			if parts[1] == "" {
+				end = -1
+			} else {
+				end, err = strconv.Atoi(strings.TrimSpace(parts[1]))
+				if err != nil {
+					return nil, fmt.Errorf("invalid end line number: %s", err)
+				}
 			}
 			result = append(result, content.LineRange{Start: start, End: end})
 		}
 	}
 
-	return result, nil
+	return
 }
 
 // parseFonts takes in a string of fonts and returns the first font
