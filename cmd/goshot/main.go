@@ -135,6 +135,13 @@ type Config struct {
 	ShowPrompt     bool
 	AutoTitle      bool
 	PromptTemplate string
+
+	// Redaction settings
+	RedactionEnabled    bool
+	RedactionStyle      string
+	RedactionBlurRadius float64
+	RedactionPatterns   []string
+	RedactionAreas      []string // Format: "x,y,width,height"
 }
 
 var config Config
@@ -319,6 +326,7 @@ func main() {
 		os.Exit(1)
 	}
 }
+
 func makeOutputFlagSet() *pflag.FlagSet {
 	fs := pflag.NewFlagSet("output", pflag.ContinueOnError)
 	fs.StringVarP(&config.OutputFile, "output", "o", "output.png", "Write output image to specific location instead of cwd")
@@ -374,6 +382,16 @@ func makeLayoutFlagSet() *pflag.FlagSet {
 	return fs
 }
 
+func makeRedactionFlagSet() *pflag.FlagSet {
+	fs := pflag.NewFlagSet("Redaction", pflag.ExitOnError)
+	fs.BoolVar(&config.RedactionEnabled, "redact", false, "Enable redaction of sensitive information")
+	fs.StringVar(&config.RedactionStyle, "redact-style", "block", "Redaction style (block or blur)")
+	fs.Float64Var(&config.RedactionBlurRadius, "redact-blur", 5.0, "Blur radius for redacted areas")
+	fs.StringSliceVar(&config.RedactionPatterns, "redact-pattern", nil, "Additional regex patterns for redaction (can be specified multiple times)")
+	fs.StringSliceVar(&config.RedactionAreas, "redact-area", nil, "Manual redaction areas in format 'x,y,width,height' (can be specified multiple times)")
+	return fs
+}
+
 func initRootConfig() {
 	rfg := map[*pflag.FlagSet]string{}
 
@@ -415,6 +433,11 @@ func initRootConfig() {
 	layoutFlags.IntVar(&config.MaxWidth, "max-width", 0, "Maximum width")
 	rootCmd.Flags().AddFlagSet(layoutFlags)
 	rfg[layoutFlags] = "layout"
+
+	// Redaction flags
+	redactionFlags := makeRedactionFlagSet()
+	rootCmd.PersistentFlags().AddFlagSet(redactionFlags)
+	rfg[redactionFlags] = "Redaction"
 
 	// Additional utility commands
 	rootCmd.AddCommand(execCommand, rootThemesCmd, fontsCmd, languagesCmd, versionCmd)

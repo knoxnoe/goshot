@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/png"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"os/user"
@@ -192,6 +193,44 @@ func executeComamand(ctx context.Context, args []string) ([]byte, error) {
 	return out.Bytes(), nil
 }
 
+func parseRedactionAreas(areas []string) ([]code.RedactionArea, error) {
+	var result []code.RedactionArea
+	for _, area := range areas {
+		parts := strings.Split(area, ",")
+		if len(parts) != 4 {
+			return nil, fmt.Errorf("invalid redaction area format: %s (expected 'x,y,width,height')", area)
+		}
+
+		x, err := strconv.Atoi(strings.TrimSpace(parts[0]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid x coordinate in redaction area: %s", area)
+		}
+
+		y, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid y coordinate in redaction area: %s", area)
+		}
+
+		width, err := strconv.Atoi(strings.TrimSpace(parts[2]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid width in redaction area: %s", area)
+		}
+
+		height, err := strconv.Atoi(strings.TrimSpace(parts[3]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid height in redaction area: %s", area)
+		}
+
+		result = append(result, code.RedactionArea{
+			X:      x,
+			Y:      y,
+			Width:  width,
+			Height: height,
+		})
+	}
+	return result, nil
+}
+
 func renderCode(config *Config, echo bool, input string) error {
 	canvas, err := makeCanvas(config, []string{})
 	if err != nil {
@@ -232,6 +271,43 @@ func renderCode(config *Config, echo bool, input string) error {
 		WithMaxWidth(config.MaxWidth).
 		WithLineNumbers(!config.NoLineNumbers).
 		WithFont(requestedFont)
+
+	// Configure redaction if enabled
+	if config.RedactionEnabled {
+		content.WithRedactionEnabled(true).
+			WithRedactionBlurRadius(config.RedactionBlurRadius)
+
+		// Set redaction style
+		var style code.RedactionStyle
+		switch strings.ToLower(config.RedactionStyle) {
+		case "blur":
+			style = code.RedactionStyleBlur
+		case "block":
+			style = code.RedactionStyleBlock
+		default:
+			return fmt.Errorf("invalid redaction style: %s (must be 'block' or 'blur')", config.RedactionStyle)
+		}
+		content.WithRedactionStyle(style)
+
+		// Add custom redaction patterns
+		if len(config.RedactionPatterns) > 0 {
+			log.Printf("Adding %d custom redaction patterns", len(config.RedactionPatterns))
+			for _, pattern := range config.RedactionPatterns {
+				content.WithRedactionPattern(pattern, "Custom Pattern")
+			}
+		}
+
+		// Add manual redaction areas
+		if len(config.RedactionAreas) > 0 {
+			areas, err := parseRedactionAreas(config.RedactionAreas)
+			if err != nil {
+				return err
+			}
+			for _, area := range areas {
+				content.WithManualRedaction(area.X, area.Y, area.Width, area.Height)
+			}
+		}
+	}
 
 	// Configure highlighted lines
 	highlightedLines, err := parseLineRanges(config.HighlightLines)

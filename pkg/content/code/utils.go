@@ -33,17 +33,17 @@ func getGutterColor(style *chroma.Style) color.Color {
 		if isLight(chroma.Colour(uint32(bgRGBA.R)<<16 | uint32(bgRGBA.G)<<8 | uint32(bgRGBA.B))) {
 			// For light backgrounds, make gutter slightly darker
 			return color.RGBA{
-				R: max(0, bgRGBA.R-20),
-				G: max(0, bgRGBA.G-20),
-				B: max(0, bgRGBA.B-20),
+				R: maxu8(0, bgRGBA.R-20),
+				G: maxu8(0, bgRGBA.G-20),
+				B: maxu8(0, bgRGBA.B-20),
 				A: 255,
 			}
 		} else {
 			// For dark backgrounds, make gutter slightly lighter
 			return color.RGBA{
-				R: min(255, bgRGBA.R+20),
-				G: min(255, bgRGBA.G+20),
-				B: min(255, bgRGBA.B+20),
+				R: minu8(255, bgRGBA.R+20),
+				G: minu8(255, bgRGBA.G+20),
+				B: minu8(255, bgRGBA.B+20),
 				A: 255,
 			}
 		}
@@ -147,14 +147,14 @@ func getColorFromChroma(c chroma.Colour) color.Color {
 }
 
 // Helper functions for color manipulation
-func max(a, b uint8) uint8 {
+func maxu8(a, b uint8) uint8 {
 	if a > b {
 		return a
 	}
 	return b
 }
 
-func min(a, b uint8) uint8 {
+func minu8(a, b uint8) uint8 {
 	if a < b {
 		return a
 	}
@@ -313,13 +313,6 @@ func splitToken(token Token, face font.Face, maxWidth int) []Token {
 	}
 
 	return result
-}
-
-func createTokenFromText(text string, color color.Color) Token {
-	return Token{
-		Text:  text,
-		Color: color,
-	}
 }
 
 func validateLineRanges(lines []Line, ranges []content.LineRange) error {

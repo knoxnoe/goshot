@@ -4,6 +4,8 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -30,6 +32,7 @@ type CodeStyle struct {
 	ShowLineNumbers     bool                // Whether to show line numbers
 	LineRanges          []content.LineRange // Ranges of lines to render
 	LineHighlightRanges []content.LineRange // Ranges of lines to highlight
+	RedactionConfig     *RedactionConfig    // Redaction configuration
 }
 
 type CodeRenderer struct {
@@ -65,6 +68,7 @@ func DefaultRenderer(input string) *CodeRenderer {
 		MinWidth:          300,
 		MaxWidth:          900,
 		ShowLineNumbers:   true,
+		RedactionConfig:   NewRedactionConfig(),
 	})
 }
 
@@ -147,6 +151,63 @@ func (r *CodeRenderer) WithLineRange(start, end int) *CodeRenderer {
 func (r *CodeRenderer) WithLineHighlightRange(start, end int) *CodeRenderer {
 	r.Style.LineHighlightRanges = append(r.Style.LineHighlightRanges, content.LineRange{Start: start, End: end})
 	return r
+}
+
+func (r *CodeRenderer) WithRedactionEnabled(enabled bool) *CodeRenderer {
+	if r.Style.RedactionConfig == nil {
+		r.Style.RedactionConfig = NewRedactionConfig()
+	}
+	r.Style.RedactionConfig.Enabled = enabled
+	return r
+}
+
+func (r *CodeRenderer) WithRedactionBlurRadius(radius float64) *CodeRenderer {
+	if r.Style.RedactionConfig == nil {
+		r.Style.RedactionConfig = NewRedactionConfig()
+	}
+	r.Style.RedactionConfig.BlurRadius = radius
+	return r
+}
+
+func (r *CodeRenderer) WithRedactionPattern(pattern string, name string) *CodeRenderer {
+	if r.Style.RedactionConfig == nil {
+		r.Style.RedactionConfig = NewRedactionConfig()
+	}
+	compiled, err := regexp.Compile(pattern)
+	if err == nil {
+		r.Style.RedactionConfig.Patterns = append(r.Style.RedactionConfig.Patterns, RedactionPattern{
+			Pattern: compiled,
+			Name:    name,
+		})
+	} else {
+		log.Printf("Failed to compile redaction pattern %q: %v", pattern, err)
+	}
+	return r
+}
+
+func (r *CodeRenderer) WithManualRedaction(x, y, width, height int) *CodeRenderer {
+	if r.Style.RedactionConfig == nil {
+		r.Style.RedactionConfig = NewRedactionConfig()
+	}
+	r.Style.RedactionConfig.AddManualRedaction(x, y, width, height)
+	return r
+}
+
+func (r *CodeRenderer) WithRedactionStyle(style RedactionStyle) *CodeRenderer {
+	if r.Style.RedactionConfig == nil {
+		r.Style.RedactionConfig = NewRedactionConfig()
+	}
+	r.Style.RedactionConfig.Style = style
+	return r
+}
+
+// getLineText concatenates all tokens in a line into a single string
+func getLineText(line Line) string {
+	var text strings.Builder
+	for _, token := range line.Tokens {
+		text.WriteString(token.Text)
+	}
+	return text.String()
 }
 
 func drawText(img *image.RGBA, face font.Face, text string, x, y int, col color.Color, token Token) {
@@ -462,13 +523,107 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		currentY += lineHeight
 	}
 
+	// Find redaction ranges if redaction is enabled
+	var lineRedactionRanges map[int][]RedactionRange
+	if r.Style.RedactionConfig != nil && r.Style.RedactionConfig.Enabled {
+		lineRedactionRanges = make(map[int][]RedactionRange)
+
+		// First find redaction ranges in the entire text
+		var fullText strings.Builder
+		lineStarts := make([]int, len(lines))
+		currentPos := 0
+		
+		for i, line := range lines {
+			lineStarts[i] = currentPos
+			text := getLineText(line)
+			fullText.WriteString(text)
+			fullText.WriteString("\n")
+			currentPos = fullText.Len()
+		}
+
+		// Find ranges in the full text
+		ranges := FindRedactionRanges(r.Style.RedactionConfig, fullText.String())
+
+		// Map the ranges back to individual lines
+		for _, r := range ranges {
+			// Find which line(s) this range belongs to
+			for i := 0; i < len(lines); i++ {
+				lineStart := lineStarts[i]
+				lineEnd := lineStarts[i] + len(getLineText(lines[i]))
+
+				// Check if this range overlaps with the current line
+				if r.StartIndex <= lineEnd && r.EndIndex > lineStart {
+					// Calculate the portion of the range that falls within this line
+					startInLine := max(0, r.StartIndex - lineStart)
+					endInLine := min(lineEnd - lineStart, r.EndIndex - lineStart)
+
+					lineRange := RedactionRange{
+						StartIndex: startInLine,
+						EndIndex:   endInLine,
+						Pattern:    r.Pattern,
+					}
+					lineRedactionRanges[i] = append(lineRedactionRanges[i], lineRange)
+				}
+			}
+		}
+	}
+
+	// Create a separate image for blur-style redactions
+	var blurImg *image.RGBA
+	if r.Style.RedactionConfig != nil && r.Style.RedactionConfig.Style == RedactionStyleBlur {
+		blurImg = image.NewRGBA(img.Bounds())
+		draw.Draw(blurImg, blurImg.Bounds(), img, image.Point{}, draw.Src)
+	}
+
+	// Track areas to blur
+	type blurArea struct {
+		startX, startY int
+		width         int
+	}
+	var currentBlurArea *blurArea
+	var blurAreas []blurArea
+
+	// Track character offsets for wrapped lines
+	type wrappedLineInfo struct {
+		originalLineIdx int
+		startOffset    int  // Character offset where this wrapped line starts in the original line
+	}
+	wrappedLineOffsets := make([]wrappedLineInfo, len(wrappedLines))
+	currentOffset := 0
+	for i, tokens := range wrappedLines {
+		originalLineIdx := lineToWrappedMap[i]
+		
+		// If this is the first wrapped line for this original line, reset the offset
+		if i == 0 || lineToWrappedMap[i-1] != originalLineIdx {
+			currentOffset = 0
+		}
+		
+		wrappedLineOffsets[i] = wrappedLineInfo{
+			originalLineIdx: originalLineIdx,
+			startOffset:    currentOffset,
+		}
+		
+		// Calculate the length of this wrapped line for the next offset
+		lineLength := 0
+		for _, token := range tokens {
+			if strings.Contains(token.Text, "\t") {
+				expandedText, _ := expandTabs(token.Text, lineLength, config.TabWidth)
+				lineLength += len(expandedText)
+			} else {
+				lineLength += len(token.Text)
+			}
+		}
+		currentOffset += lineLength
+	}
+
 	// Draw line numbers and text
 	currentY = config.PaddingTop
+	
 	for i, tokens := range wrappedLines {
-
 		// Draw line numbers if enabled
 		if config.ShowLineNumbers {
-			lineNumber := lineNumberMap[i]
+			originalLineIdx := lineToWrappedMap[i]
+			lineNumber := lineNumberMap[originalLineIdx]
 			lineNumberStr := strconv.Itoa(lineNumber)
 			lineNumberWidth := font.MeasureString(regularFace.Face, lineNumberStr)
 
@@ -488,21 +643,148 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 
 		// Draw tokens
 		x := config.PaddingLeft + lineNumberOffset
-		currentColumn := 0
+		currentColumn := wrappedLineOffsets[i].startOffset
+		originalLineIdx := wrappedLineOffsets[i].originalLineIdx
+		redactionRanges := lineRedactionRanges[originalLineIdx]
+
 		for _, token := range tokens {
 			// Handle tab expansion for drawing
 			if strings.Contains(token.Text, "\t") {
 				expandedText, newColumn := expandTabs(token.Text, currentColumn, config.TabWidth)
-				drawText(img, getFaceForToken(token), expandedText, x, currentY+metrics.Ascent.Round(), token.Color, token)
-				x += font.MeasureString(getFaceForToken(token), expandedText).Round()
+				// Draw expanded text character by character
+				charX := x
+				for j, ch := range expandedText {
+					shouldRedact := false
+					if len(redactionRanges) > 0 {
+						shouldRedact = ShouldRedact(currentColumn+j, redactionRanges)
+					}
+					
+					if shouldRedact {
+						if r.Style.RedactionConfig.Style == RedactionStyleBlock {
+							// Draw a block character
+							drawText(img, getFaceForToken(token), "█", charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						} else {
+							// For blur style, track the area to blur
+							if currentBlurArea == nil {
+								currentBlurArea = &blurArea{
+									startX: charX,
+									startY: currentY,
+									width:  0,
+								}
+							}
+							// Still draw the actual character but we'll blur it later
+							drawText(blurImg, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						}
+					} else {
+						// If we were tracking a blur area, finish it
+						if currentBlurArea != nil {
+							blurAreas = append(blurAreas, *currentBlurArea)
+							currentBlurArea = nil
+						}
+						// Draw the character normally
+						if r.Style.RedactionConfig.Style == RedactionStyleBlur {
+							drawText(blurImg, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						} else {
+							drawText(img, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						}
+					}
+					
+					charWidth := font.MeasureString(getFaceForToken(token), string(ch)).Round()
+					if currentBlurArea != nil {
+						currentBlurArea.width += charWidth
+					}
+					charX += charWidth
+				}
+				x = charX
 				currentColumn = newColumn
 			} else {
-				drawText(img, getFaceForToken(token), token.Text, x, currentY+metrics.Ascent.Round(), token.Color, token)
-				x += font.MeasureString(getFaceForToken(token), token.Text).Round()
+				// Draw regular text character by character
+				charX := x
+				for j, ch := range token.Text {
+					shouldRedact := false
+					if len(redactionRanges) > 0 {
+						shouldRedact = ShouldRedact(currentColumn+j, redactionRanges)
+					}
+					
+					if shouldRedact {
+						if r.Style.RedactionConfig.Style == RedactionStyleBlock {
+							// Draw a block character
+							drawText(img, getFaceForToken(token), "█", charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						} else {
+							// For blur style, track the area to blur
+							if currentBlurArea == nil {
+								currentBlurArea = &blurArea{
+									startX: charX,
+									startY: currentY,
+									width:  0,
+								}
+							}
+							// Still draw the actual character but we'll blur it later
+							drawText(blurImg, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						}
+					} else {
+						// If we were tracking a blur area, finish it
+						if currentBlurArea != nil {
+							blurAreas = append(blurAreas, *currentBlurArea)
+							currentBlurArea = nil
+						}
+						// Draw the character normally
+						if r.Style.RedactionConfig.Style == RedactionStyleBlur {
+							drawText(blurImg, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						} else {
+							drawText(img, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
+						}
+					}
+					
+					charWidth := font.MeasureString(getFaceForToken(token), string(ch)).Round()
+					if currentBlurArea != nil {
+						currentBlurArea.width += charWidth
+					}
+					charX += charWidth
+				}
+				x = charX
 				currentColumn += len(token.Text)
 			}
 		}
+		
+		// If we have an unfinished blur area at the end of the line, add it
+		if currentBlurArea != nil {
+			blurAreas = append(blurAreas, *currentBlurArea)
+			currentBlurArea = nil
+		}
+		
 		currentY += lineHeight
+	}
+
+	// Apply blur effect to collected areas if using blur style
+	if r.Style.RedactionConfig != nil && r.Style.RedactionConfig.Style == RedactionStyleBlur {
+		metrics := regularFace.Face.Metrics()
+		lineHeight := metrics.Height.Round()
+		
+		for _, area := range blurAreas {
+			redactArea(blurImg, area.startX, area.startY, area.width, lineHeight, r.Style.RedactionConfig.BlurRadius)
+		}
+		
+		// Apply any manual redactions
+		for _, area := range r.Style.RedactionConfig.ManualRedactions {
+			redactArea(blurImg, area.X, area.Y, area.Width, area.Height, r.Style.RedactionConfig.BlurRadius)
+		}
+		
+		img = blurImg
+	} else if r.Style.RedactionConfig != nil {
+		// Apply manual redactions with block style
+		for _, area := range r.Style.RedactionConfig.ManualRedactions {
+			// Fill the area with block characters
+			blockChar := "█"
+			blockWidth := font.MeasureString(regularFace.Face, blockChar).Round()
+			numBlocks := area.Width / blockWidth
+			
+			for y := area.Y; y < area.Y+area.Height; y += lineHeight {
+				for i := 0; i < numBlocks; i++ {
+					drawText(img, regularFace.Face, blockChar, area.X+(i*blockWidth), y+metrics.Ascent.Round(), color.Black, Token{Text: blockChar})
+				}
+			}
+		}
 	}
 
 	return img, nil
