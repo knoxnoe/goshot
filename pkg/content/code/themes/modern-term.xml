@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style name="terminal">
+<!-- Base colors -->
+<entry type="Background" style="bg:#002B36"/>
+<entry type="Text" style="#93A1A1"/>
+<entry type="Error" style="#F8F8F0 bg:#00BCD4"/>
+<entry type="LineHighlight" style="bg:#073642"/>
+
+<!-- Comments -->
+<entry type="Comment" style="#546E7A"/>
+
+<!-- Strings -->
+<entry type="LiteralString" style="#FFB74D italic underline"/>
+<entry type="LiteralStringDouble" style="#FFB74D italic underline"/>
+<entry type="LiteralStringEscape" style="#FFB74D"/>
+
+<!-- Numbers -->
+<entry type="LiteralNumber" style="#F06292 bold"/>
+
+<!-- Keywords -->
+<entry type="Keyword" style="#00BCD4"/>
+<entry type="KeywordConstant" style="#00BCD4"/>
+<entry type="KeywordType" style="#4DD0E1 bold italic"/>
+
+<!-- Names -->
+<entry type="Name" style="#93A1A1"/>
+<entry type="NameAttribute" style="#AED581"/>
+<entry type="NameBuiltin" style="#00BCD4"/>
+<entry type="NameBuiltinPseudo" style="#00BCD4"/>
+<entry type="NameClass" style="#AED581"/>
+<entry type="NameConstant" style="#F06292"/>
+<entry type="NameDecorator" style="#AED581"/>
+<entry type="NameEntity" style="#AED581"/>
+<entry type="NameException" style="#AED581"/>
+<entry type="NameFunction" style="#AED581"/>
+<entry type="NameFunctionMagic" style="#AED581"/>
+<entry type="NameLabel" style="#93A1A1"/>
+<entry type="NameNamespace" style="#93A1A1"/>
+<entry type="NameOther" style="#AED581"/>
+<entry type="NameTag" style="#00BCD4"/>
+<entry type="NameVariable" style="#FF8A65"/>
+<entry type="NameVariableClass" style="#FF8A65"/>
+<entry type="NameVariableGlobal" style="#FF8A65"/>
+<entry type="NameVariableInstance" style="#FF8A65"/>
+<entry type="NameVariableMagic" style="#FF8A65"/>
+
+<!-- Operators -->
+<entry type="Operator" style="#00BCD4"/>
+<entry type="OperatorWord" style="#00BCD4"/>
+
+<!-- Punctuation -->
+<entry type="Punctuation" style="#93A1A1"/>
+
+<!-- Generic -->
+<entry type="Generic" style="#93A1A1"/>
+<entry type="GenericDeleted" style="#00BCD4"/>
+<entry type="GenericEmph" style="italic"/>
+<entry type="GenericError" style="#F8F8F0 bg:#00BCD4"/>
+<entry type="GenericHeading" style="#AED581"/>
+<entry type="GenericInserted" style="#FFB74D"/>
+<entry type="GenericOutput" style="#93A1A1"/>
+<entry type="GenericPrompt" style="#546E7A"/>
+<entry type="GenericStrong" style="bold"/>
+<entry type="GenericSubheading" style="#AED581"/>
+<entry type="GenericTraceback" style="#F8F8F0 bg:#00BCD4"/>
+<entry type="GenericUnderline" style="underline"/>
+
+<!-- Whitespace -->
+<entry type="TextWhitespace" style="#073642"/>
+</style>
