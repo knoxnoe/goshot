@@ -27,13 +27,13 @@ func main() {
 	// List of color blind friendly color schemes
 	cb_schemes := []string{
 		"blueprint",
-		"glacier-ice",
+		"glacier",
 		"terminal",
-		"neo-noir",
-		"obsidian-deep",
+		"neonoir",
+		"obsidian",
 		"papercut",
-		"parchment-scroll",
-		"secret-garden",
+		"parchment",
+		"garden",
 	}
 
 	// Template for the wiki page that lists every available color scheme
@@ -41,22 +41,19 @@ func main() {
 
 Goshot includes a ton of color schemes, including all of those available in [Chroma](https://github.com/alecthomas/chroma) and several that are not. Some of these are specifically designed to be color blind friendly, making Goshot a great choice for accessibility.
 
-## All Schemes
-
-{{ range .Schemes }}
-- [{{ . }}](#{{ . }}){{ end }}
-
-## Color Blindness Friendly Schemes
-
-{{ range .CbSchemes }}
-- [{{ . }}](#{{ . }})
+## Table of Contents
+- Color Blindness Friendly Schemes
+{{ range .CbSchemes }}    - [{{ . }}](#{{ . }}-colorblind-friendly)
 {{ end }}
- 
+- Other Schemes
+{{ range .Schemes }}{{ if not (contains $.CbSchemes .) }}    - [{{ . }}](#{{ . }})
+{{ end }}{{ end }}
+
 ## Examples
 
 {{ range .Schemes }}
 ### {{ . }}{{ if contains $.CbSchemes . }} (colorblind friendly){{ end }}
-![{{ . }}](./{{ . }}.png)
+![{{ . }}](./assets/images/examples/{{ . }}.png)
 
 {{ end }}`
 
@@ -149,7 +146,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	err = os.WriteFile("example_output/index.md", []byte(buf.String()), 0644)
+	err = os.WriteFile("example_output/Color-Schemes.md", []byte(buf.String()), 0644)
 	if err != nil {
 		log.Fatal(err)
 	}
