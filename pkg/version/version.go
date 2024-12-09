@@ -1,5 +1,5 @@
 package version
 
-const Version = "v0.7.0"
-const Revision = "328cffaca101796b12deba87924bf6ffec0239f2"
+const Version = "v0.7.1"
+const Revision = "262d4fdf9b6e2042adb4879c59643d6610e2f2fa"
 const Date = "2024-12-09"
