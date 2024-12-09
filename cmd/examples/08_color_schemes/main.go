@@ -28,7 +28,7 @@ func main() {
 	cb_schemes := []string{
 		"blueprint",
 		"glacier-ice",
-		"modern-term",
+		"terminal",
 		"neo-noir",
 		"obsidian-deep",
 		"papercut",
@@ -44,8 +44,7 @@ Goshot includes a ton of color schemes, including all of those available in [Chr
 ## All Schemes
 
 {{ range .Schemes }}
-- [{{ . }}](#{{ . }})
-{{ end }}
+- [{{ . }}](#{{ . }}){{ end }}
 
 ## Color Blindness Friendly Schemes
 
@@ -67,36 +66,59 @@ Goshot includes a ton of color schemes, including all of those available in [Chr
 import (
     "fmt"
     "strings"
+    "time"
 )
 
-// This is a very long comment that should wrap to multiple lines when the width is constrained. We'll make it even longer to ensure it wraps at least once or twice when rendered.
+// ColorName represents a named color in our system. We support a variety of standard colors that can be used
+// throughout the application. Each color can be customized by the user through their configuration file.
+type ColorName string
+
+const (
+    // These are our predefined colors. Each one maps to a specific RGB or HSL value in the theme configuration.
+    ColorPrimary   ColorName = "primary"   // Main application color, used for highlights and important UI elements
+    ColorSecondary ColorName = "secondary" // Used for less prominent elements, providing visual hierarchy
+    ColorAccent    ColorName = "accent"    // Bright, attention-grabbing color for calls-to-action and highlights
+    ColorNeutral   ColorName = "neutral"   // Balanced color used for general UI elements and backgrounds
+)
+
+// formatColor applies ANSI color codes to create visual styling in the terminal. It supports both foreground
+// and background colors, as well as additional styling like bold, italic, and underline effects.
+func formatColor(text string, colorName ColorName) string {
+    prefix := strings.Repeat("=", 20)
+    suffix := strings.Repeat("=", 20)
+    timestamp := time.Now().Format("15:04:05")
+
+    return fmt.Sprintf("%s [%s] %s: %s %s", prefix, timestamp, colorName, text, suffix)
+}
+
 func main() {
-    message := "Hello, " + strings.Repeat("World! ", 10)
-    fmt.Println(message)
+    // Demonstrate different color formatting with timestamps and decorative elements
+    colors := []ColorName{ColorPrimary, ColorSecondary, ColorAccent, ColorNeutral}
+    
+    for _, color := range colors {
+        message := formatColor("This is a sample message", color)
+        fmt.Println(message)
+    }
 }`
 
 	color_schemes := code.GetAvailableStyles()
 	sort.Strings(color_schemes)
 
-	canvas := render.NewCanvas().
-		WithChrome(chrome.NewMacChrome(
-			chrome.MacStyleSequoia,
-			chrome.WithTitle("Basic Example"))).
-		WithBackground(
-			background.NewColorBackground().
-				WithColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).
-				WithPadding(40),
-		)
-
-	content := code.DefaultRenderer(input).
-		WithLanguage("go").
-		WithTabWidth(4).
-		WithLineNumbers(true)
-
 	for _, scheme := range color_schemes {
-		content = content.WithTheme(scheme)
-
-		canvas = canvas.WithContent(content)
+		canvas := render.NewCanvas().
+			WithChrome(chrome.NewMacChrome(
+				chrome.MacStyleSequoia,
+				chrome.WithTitle(scheme+" example"))).
+			WithBackground(
+				background.NewColorBackground().
+					WithColor(color.RGBA{R: 20, G: 30, B: 40, A: 255}).
+					WithPadding(40),
+			).
+			WithContent(code.DefaultRenderer(input).
+				WithLanguage("go").
+				WithTheme(scheme).
+				WithTabWidth(4).
+				WithLineNumbers(true))
 
 		os.MkdirAll("example_output", 0755)
 		err := canvas.SaveAsPNG("example_output/" + scheme + ".png")
