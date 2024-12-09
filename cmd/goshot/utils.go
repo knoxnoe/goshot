@@ -441,7 +441,7 @@ func renderTerm(config *Config, echo bool, args []string, input []byte) error {
 		AutoSize:      config.AutoSize,
 		CellSpacing:   config.CellSpacing,
 		ShowPrompt:    config.ShowPrompt,
-		PromptFunc:    newPromptFunc(config.PromptTemplate),
+		PromptFunc:    newPromptFunc(config.PromptTemplate, config),
 	})
 
 	canvas.WithContent(renderer)
@@ -632,6 +632,22 @@ func expandPath(path string) string {
 	return path
 }
 
+// escapeCommand escapes a terminal command for use in a filename
+func escapeCommand(command string) string {
+	return strings.NewReplacer(
+		"/", "_",
+		" ", "_",
+		":", "_",
+		"\\", "_",
+		"\"", "_",
+		"<", "_",
+		">", "_",
+		"|", "_",
+		"?", "_",
+		"*", "_",
+	).Replace(command)
+}
+
 // TemplateData holds data that can be used in templates
 type TemplateData struct {
 	// System information
@@ -654,8 +670,9 @@ type TemplateData struct {
 func newTemplateData(command string, config *Config) (*TemplateData, error) {
 	data := &TemplateData{
 		Command:  command,
-		Config:   config,
 		DateTime: time.Now(),
+		Config:   config,
+		FileBase: "goshot", // Default filename base
 	}
 
 	// Get system information
@@ -670,37 +687,49 @@ func newTemplateData(command string, config *Config) (*TemplateData, error) {
 		data.FileDir = cwd // Default FileDir to cwd
 	}
 
-	// Set file information based on input type
-	switch {
-	case config.Input != "":
-		// Using a file input
-		data.Filename = filepath.Base(config.Input)
-		data.FileBase = strings.TrimSuffix(filepath.Base(config.Input), filepath.Ext(config.Input))
-		data.FileExt = filepath.Ext(config.Input)
-		data.FileDir = filepath.Dir(config.Input)
-	case config.FromClipboard:
-		// Using clipboard input
-		data.Filename = "clipboard"
-		data.FileBase = "goshot"
-		data.FileExt = ""
-	default:
-		// Using stdin or other input
-		data.Filename = "stdin"
-		data.FileBase = "goshot"
-		data.FileExt = ""
+	// Only process file information if we have a config
+	if config != nil {
+		// Set file information based on input type
+		switch {
+		case config.Input != "":
+			// Using a file input
+			data.Filename = filepath.Base(config.Input)
+			data.FileBase = strings.TrimSuffix(filepath.Base(config.Input), filepath.Ext(config.Input))
+			data.FileExt = filepath.Ext(config.Input)
+			data.FileDir = filepath.Dir(config.Input)
+		case config.FromClipboard:
+			// Using clipboard input
+			data.Filename = "clipboard"
+			data.FileBase = "goshot"
+			data.FileExt = ""
+		case command != "" || len(config.Args) > 0:
+			// Using command input
+			if command != "" {
+				data.Filename = escapeCommand(command)
+			} else {
+				data.Filename = escapeCommand(strings.Join(config.Args, " "))
+			}
+			data.FileBase = "goshot"
+			data.FileExt = ""
+		default:
+			// Using stdin or other input
+			data.Filename = "stdin"
+			data.FileBase = "goshot"
+			data.FileExt = ""
+		}
 	}
 
 	return data, nil
 }
 
-func newPromptFunc(tmpl string) func(command string) string {
+func newPromptFunc(tmpl string, config *Config) func(command string) string {
 	return func(command string) string {
 		t, err := template.New("prompt").Parse(tmpl)
 		if err != nil {
 			return tmpl // Return raw template on error
 		}
 
-		data, err := newTemplateData(command, nil)
+		data, err := newTemplateData(command, config)
 		if err != nil {
 			return tmpl
 		}

@@ -72,6 +72,7 @@ type Config struct {
 
 	// Input/Output options
 	Input         string
+	Args          []string
 	OutputFile    string
 	ToClipboard   bool
 	FromClipboard bool
@@ -368,6 +369,7 @@ var execCommand = &cobra.Command{
 		if len(args) == 0 {
 			input, err = io.ReadAll(cmd.InOrStdin())
 		} else {
+			config.Args = args
 			input, err = executeComamand(cmd.Context(), args)
 		}
 		if err != nil {
@@ -571,13 +573,6 @@ func initRootConfig() {
 	// Add flags to root command
 	flags := rootCmd.PersistentFlags()
 
-	// Input/Output flags
-	flags.StringVarP(&config.Input, "input", "i", "", "Input file")
-	flags.StringVarP(&config.OutputFile, "output", "o", viper.GetString("io.output_file"), "Output file")
-	flags.BoolVarP(&config.ToClipboard, "clipboard", "c", viper.GetBool("io.copy_to_clipboard"), "Copy to clipboard")
-	flags.BoolVarP(&config.FromClipboard, "from-clipboard", "C", viper.GetBool("io.from_clipboard"), "Read from clipboard")
-	flags.BoolVarP(&config.ToStdout, "stdout", "s", viper.GetBool("io.to_stdout"), "Write to stdout")
-
 	// Appearance flags
 	flags.StringVar(&config.WindowChrome, "chrome", viper.GetString("appearance.window_chrome"), "Chrome style (mac, windows, gnome)")
 	flags.StringVar(&config.ChromeThemeName, "chrome-theme", viper.GetString("appearance.chrome_theme"), "Chrome theme name")
@@ -598,6 +593,7 @@ func initRootConfig() {
 	flags.StringSliceVar(&config.HighlightLines, "highlight-lines", viper.GetStringSlice("appearance.lines.highlight"), "Line ranges to highlight")
 
 	// Add flag sets
+	rootCmd.PersistentFlags().AddFlagSet(makeOutputFlagSet())
 	rootCmd.PersistentFlags().AddFlagSet(makeGradientFlagSet())
 	rootCmd.PersistentFlags().AddFlagSet(makeShadowFlagSet())
 	rootCmd.PersistentFlags().AddFlagSet(makeLayoutFlagSet())
