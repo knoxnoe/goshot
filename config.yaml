@@ -148,9 +148,4 @@ terminal:
   # Show command prompt in output
   show_prompt: false
   # Prompt template with ANSI color codes
-  # Available placeholders include:
-  #   [user] - Username
-  #   [host] - Hostname
-  #   [path] - Current working directory
-  #   [command] - Command being executed
-  prompt_template: "\x1b[1;35m❯ \x1b[0;32m[command]\x1b[0m\n"
+  prompt_template: "\x1b[1;35m❯ \x1b[0;32m{{ .Command }}\x1b[0m\n"
