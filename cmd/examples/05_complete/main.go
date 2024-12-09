@@ -17,10 +17,10 @@ func main() {
 	// Simple code example
 	input := `package main
 
-import (
+import "(
 	"fmt"
 	"strings"
-)
+)"
 
 func greet(name string) string {
 	return fmt.Sprintf("Hello, %s!", strings.TrimSpace(name))
@@ -131,7 +131,7 @@ func main() {
 		WithLineNumbers(true).
 		WithLineRange(1, 17).
 		WithLineHighlightRange(8, 10).
-		WithFontName("JetBrainsMono", &fonts.FontStyle{
+		WithFontName("JetBrainsMonoNerdFont", &fonts.FontStyle{
 			Weight:  fonts.WeightRegular,
 			Stretch: fonts.StretchNormal,
 		}).
