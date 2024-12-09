@@ -73,7 +73,7 @@ appearance:
   shadow:
     # Shadow color in hex format with alpha
     color: "#00000033"
-    # Blur radius in pixels
+    # Blur radius in pixels (if this is 0, no shadow will be applied)
     blur_radius: 0.0
     # Shadow spread in pixels
     spread: 0.0
@@ -102,8 +102,8 @@ appearance:
     line_pad: 2
     # Outer padding
     padding:
-      horizontal: 20
-      vertical: 20
+      horizontal: 100
+      vertical: 80
     # Code content padding
     code_padding:
       top: 10

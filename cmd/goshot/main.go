@@ -253,8 +253,8 @@ func initConfig() {
 	viper.SetDefault("appearance.shadow.offset.x", 0.0)
 	viper.SetDefault("appearance.shadow.offset.y", 0.0)
 	viper.SetDefault("appearance.layout.line_pad", 2)
-	viper.SetDefault("appearance.layout.padding.horizontal", 60)
-	viper.SetDefault("appearance.layout.padding.vertical", 50)
+	viper.SetDefault("appearance.layout.padding.horizontal", 100)
+	viper.SetDefault("appearance.layout.padding.vertical", 80)
 	viper.SetDefault("appearance.layout.code_padding.top", 10)
 	viper.SetDefault("appearance.layout.code_padding.bottom", 10)
 	viper.SetDefault("appearance.layout.code_padding.left", 10)
@@ -573,24 +573,7 @@ func initRootConfig() {
 	// Add flags to root command
 	flags := rootCmd.PersistentFlags()
 
-	// Appearance flags
-	flags.StringVar(&config.WindowChrome, "chrome", viper.GetString("appearance.window_chrome"), "Chrome style (mac, windows, gnome)")
-	flags.StringVar(&config.ChromeThemeName, "chrome-theme", viper.GetString("appearance.chrome_theme"), "Chrome theme name")
-	flags.BoolVar(&config.LightMode, "light-mode", viper.GetBool("appearance.light_mode"), "Use light mode")
-	flags.StringVar(&config.Theme, "theme", viper.GetString("appearance.theme"), "Theme name")
 	flags.StringVar(&config.Language, "language", "", "Language override")
-	flags.StringVar(&config.Font, "font", viper.GetString("appearance.font"), "Font family")
-	flags.Float64Var(&config.LineHeight, "line-height", viper.GetFloat64("appearance.line_height"), "Line height")
-	flags.StringVar(&config.BackgroundColor, "background-color", viper.GetString("appearance.background.color"), "Background color")
-	flags.StringVar(&config.BackgroundImage, "background-image", viper.GetString("appearance.background.image.source"), "Background image")
-	flags.StringVar(&config.BackgroundImageFit, "background-image-fit", viper.GetString("appearance.background.image_fit"), "Background image fit (fill, contain, cover, scale-down, none)")
-	flags.BoolVar(&config.NoLineNumbers, "no-line-numbers", !viper.GetBool("appearance.line_numbers"), "Hide line numbers")
-	flags.Float64Var(&config.CornerRadius, "corner-radius", viper.GetFloat64("appearance.corner_radius"), "Corner radius")
-	flags.BoolVar(&config.NoWindowControls, "no-window-controls", !viper.GetBool("appearance.window.controls"), "Hide window controls")
-	flags.StringVar(&config.WindowTitle, "window-title", viper.GetString("appearance.window.title"), "Window title")
-	flags.Float64Var(&config.WindowCornerRadius, "window-corner-radius", viper.GetFloat64("appearance.window.corner_radius"), "Window corner radius")
-	flags.StringSliceVar(&config.LineRanges, "line-ranges", viper.GetStringSlice("appearance.lines.ranges"), "Line ranges to show (e.g. 1-10,20-30)")
-	flags.StringSliceVar(&config.HighlightLines, "highlight-lines", viper.GetStringSlice("appearance.lines.highlight"), "Line ranges to highlight")
 
 	// Add flag sets
 	rootCmd.PersistentFlags().AddFlagSet(makeOutputFlagSet())
@@ -598,6 +581,7 @@ func initRootConfig() {
 	rootCmd.PersistentFlags().AddFlagSet(makeShadowFlagSet())
 	rootCmd.PersistentFlags().AddFlagSet(makeLayoutFlagSet())
 	rootCmd.PersistentFlags().AddFlagSet(makeRedactionFlagSet())
+	rootCmd.PersistentFlags().AddFlagSet(makeAppearanceFlagSet())
 
 	// Bind flags to viper
 	viper.BindPFlags(rootCmd.PersistentFlags())
