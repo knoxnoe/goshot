@@ -122,7 +122,7 @@ func TestGetFontVariants(t *testing.T) {
 	}{
 		{
 			name:      "Get JetBrains variants",
-			fontName:  "JetBrains",
+			fontName:  "JetBrainsMonoNerdFont",
 			wantError: false,
 		},
 		{
@@ -153,7 +153,7 @@ func TestListFonts(t *testing.T) {
 	}
 
 	// Check if our embedded fonts are in the list
-	expectedFonts := []string{"Cantarell", "JetBrains", "Inter"}
+	expectedFonts := []string{"Cantarell", "JetBrainsMonoNerdFont", "Inter"}
 	for _, expected := range expectedFonts {
 		found := false
 		for _, font := range fonts {
@@ -176,7 +176,7 @@ func TestMonospaceDetection(t *testing.T) {
 	}{
 		{
 			name:     "JetBrains (should be mono)",
-			fontName: "JetBrains",
+			fontName: "JetBrainsMonoNerdFont",
 			wantMono: true,
 		},
 		{
@@ -207,7 +207,7 @@ func TestGetMaxWidth(t *testing.T) {
 	}{
 		{
 			name:     "Get max width for mono font",
-			fontName: "JetBrains",
+			fontName: "JetBrainsMonoNerdFont",
 		},
 		{
 			name:     "Get max width for proportional font",
@@ -253,13 +253,13 @@ func TestGetMonoFace(t *testing.T) {
 	}{
 		{
 			name:      "Default cell width mono font",
-			fontName:  "JetBrains",
+			fontName:  "JetBrainsMonoNerdFont",
 			size:      12,
 			cellWidth: 0,
 		},
 		{
 			name:      "Custom cell width mono font",
-			fontName:  "JetBrains",
+			fontName:  "JetBrainsMonoNerdFont",
 			size:      12,
 			cellWidth: 20,
 		},
