@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/jpeg"
 	"image/png"
 	"io"
 	"log"
@@ -15,6 +16,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"text/template"
+	"time"
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/lipgloss"
@@ -26,6 +29,7 @@ import (
 	content_term "github.com/watzon/goshot/pkg/content/term"
 	"github.com/watzon/goshot/pkg/fonts"
 	"github.com/watzon/goshot/pkg/render"
+	"golang.org/x/image/bmp"
 	"golang.org/x/term"
 )
 
@@ -231,6 +235,24 @@ func parseRedactionAreas(areas []string) ([]code.RedactionArea, error) {
 	return result, nil
 }
 
+func detectLanguage(config *Config) string {
+	// If language is explicitly set, use it
+	if config.Language != "" {
+		return config.Language
+	}
+
+	// If we have an input file, try to detect from extension
+	if config.Input != "" {
+		ext := strings.TrimPrefix(filepath.Ext(config.Input), ".")
+		if ext != "" {
+			return ext
+		}
+	}
+
+	// Default to no language
+	return ""
+}
+
 func renderCode(config *Config, echo bool, input string) error {
 	canvas, err := makeCanvas(config, []string{})
 	if err != nil {
@@ -260,7 +282,7 @@ func renderCode(config *Config, echo bool, input string) error {
 
 	// Configure content
 	content := code.DefaultRenderer(input).
-		WithLanguage(config.Language).
+		WithLanguage(detectLanguage(config)).
 		WithTheme(config.Theme).
 		WithFontSize(fontSize).
 		WithLineHeight(config.LineHeight).
@@ -329,50 +351,48 @@ func renderCode(config *Config, echo bool, input string) error {
 
 	canvas.WithContent(content)
 
-	if config.ToClipboard || config.ToStdout {
-		img, err := canvas.RenderToImage()
-		if err != nil {
-			return err
-		}
-
-		// Encode to png
-		pngBuf := bytes.NewBuffer(nil)
-		if err := png.Encode(pngBuf, img); err != nil {
-			return fmt.Errorf("failed to encode image to png: %v", err)
-		}
-
-		// NOTE: Not all clipboard backends recognize the png header.
-		//       wl-clipboard and xclip both should.
-		if config.ToClipboard {
-			err := clipboard.WriteAll(pngBuf.String())
-			if err != nil {
-				return fmt.Errorf("failed to copy image to clipboard: %v", err)
-			}
-
-			if echo {
-				logMessage(styles.successBox, "COPIED", "to clipboard")
-			}
-		}
-
-		if config.ToStdout {
-			_, err := os.Stdout.Write(pngBuf.Bytes())
-			if err != nil {
-				return fmt.Errorf("failed to write image to stdout: %v", err)
-			}
-
-			if echo {
-				logMessage(styles.successBox, "WROTE", "to stdout")
-			}
-		}
-		return nil
+	// Render and save
+	img, err := canvas.RenderToImage()
+	if err != nil {
+		return err
 	}
 
-	err = saveCanvasToImage(canvas, config)
-	if err == nil {
-		if echo {
-			logMessage(styles.successBox, "WROTE", config.OutputFile)
+	// Encode to png
+	pngBuf := bytes.NewBuffer(nil)
+	if err := png.Encode(pngBuf, img); err != nil {
+		return fmt.Errorf("failed to encode image to png: %v", err)
+	}
+
+	// NOTE: Not all clipboard backends recognize the png header.
+	//       wl-clipboard and xclip both should.
+	if config.ToClipboard {
+		err := clipboard.WriteAll(pngBuf.String())
+		if err != nil {
+			return fmt.Errorf("failed to copy image to clipboard: %v", err)
 		}
-	} else {
+
+		if echo {
+			logMessage(styles.successBox, "COPIED", "to clipboard")
+		}
+	}
+
+	if config.ToStdout {
+		_, err := os.Stdout.Write(pngBuf.Bytes())
+		if err != nil {
+			return fmt.Errorf("failed to write image to stdout: %v", err)
+		}
+
+		if echo {
+			logMessage(styles.successBox, "WROTE", "to stdout")
+		}
+	}
+
+	resolvedFilename, err := saveImageToFile(img, config)
+	if err == nil && resolvedFilename != "" {
+		if echo {
+			logMessage(styles.successBox, "WROTE", resolvedFilename)
+		}
+	} else if err != nil {
 		return fmt.Errorf("failed to save image: %v", err)
 	}
 
@@ -426,12 +446,18 @@ func renderTerm(config *Config, echo bool, args []string, input []byte) error {
 
 	canvas.WithContent(renderer)
 
-	err = saveCanvasToImage(canvas, config)
-	if err == nil {
+	// Render and save
+	img, err := canvas.RenderToImage()
+	if err != nil {
+		return err
+	}
+
+	resolvedFilename, err := saveImageToFile(img, config)
+	if err == nil && resolvedFilename != "" {
 		if echo {
-			logMessage(styles.successBox, "WROTE", config.OutputFile)
+			logMessage(styles.successBox, "WROTE", resolvedFilename)
 		}
-	} else {
+	} else if err != nil {
 		return fmt.Errorf("failed to save image: %v", err)
 	}
 
@@ -592,6 +618,139 @@ func makeCanvas(config *Config, args []string) (*render.Canvas, error) {
 	return canvas, nil
 }
 
+func expandPath(path string) string {
+	// Expand environment variables
+	path = os.ExpandEnv(path)
+
+	// Expand tilde to home directory
+	if strings.HasPrefix(path, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(home, path[2:])
+		}
+	}
+
+	return path
+}
+
+// TemplateData holds data that can be used in templates
+type TemplateData struct {
+	// System information
+	User    string
+	Host    string
+	Path    string
+	Command string
+
+	// File information (from input file)
+	Filename string // Full filename with extension (or "stdin" for clipboard/stdin input)
+	FileBase string // Filename without extension (or "goshot" for clipboard/stdin input)
+	FileExt  string // File extension with dot (or "" for clipboard/stdin input)
+	FileDir  string // Directory containing the file (or cwd for clipboard/stdin input)
+
+	// Other data
+	Config   *Config
+	DateTime time.Time
+}
+
+func newTemplateData(command string, config *Config) (*TemplateData, error) {
+	data := &TemplateData{
+		Command:  command,
+		Config:   config,
+		DateTime: time.Now(),
+	}
+
+	// Get system information
+	if usr, err := user.Current(); err == nil {
+		data.User = usr.Username
+	}
+	if host, err := os.Hostname(); err == nil {
+		data.Host = host
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		data.Path = cwd
+		data.FileDir = cwd // Default FileDir to cwd
+	}
+
+	// Set file information based on input type
+	switch {
+	case config.Input != "":
+		// Using a file input
+		data.Filename = filepath.Base(config.Input)
+		data.FileBase = strings.TrimSuffix(filepath.Base(config.Input), filepath.Ext(config.Input))
+		data.FileExt = filepath.Ext(config.Input)
+		data.FileDir = filepath.Dir(config.Input)
+	case config.FromClipboard:
+		// Using clipboard input
+		data.Filename = "clipboard"
+		data.FileBase = "goshot"
+		data.FileExt = ""
+	default:
+		// Using stdin or other input
+		data.Filename = "stdin"
+		data.FileBase = "goshot"
+		data.FileExt = ""
+	}
+
+	return data, nil
+}
+
+func newPromptFunc(tmpl string) func(command string) string {
+	return func(command string) string {
+		t, err := template.New("prompt").Parse(tmpl)
+		if err != nil {
+			return tmpl // Return raw template on error
+		}
+
+		data, err := newTemplateData(command, nil)
+		if err != nil {
+			return tmpl
+		}
+
+		var buf strings.Builder
+		if err := t.Execute(&buf, data); err != nil {
+			return tmpl
+		}
+
+		return buf.String()
+	}
+}
+
+func newFilenameFunc(tmpl string, config *Config) func() string {
+	return func() string {
+		t, err := template.New("filename").Funcs(template.FuncMap{
+			"formatDate": func(format string) string {
+				return time.Now().Format(format)
+			},
+		}).Parse(tmpl)
+		if err != nil {
+			now := time.Now()
+			return filepath.Join(
+				filepath.Dir(config.OutputFile),
+				fmt.Sprintf("goshot_%s.png", now.Format("2006-01-02_15-04-05")),
+			)
+		}
+
+		data, err := newTemplateData("", config)
+		if err != nil {
+			now := time.Now()
+			return filepath.Join(
+				filepath.Dir(config.OutputFile),
+				fmt.Sprintf("goshot_%s.png", now.Format("2006-01-02_15-04-05")),
+			)
+		}
+
+		var buf strings.Builder
+		if err := t.Execute(&buf, data); err != nil {
+			now := time.Now()
+			return filepath.Join(
+				filepath.Dir(config.OutputFile),
+				fmt.Sprintf("goshot_%s.png", now.Format("2006-01-02_15-04-05")),
+			)
+		}
+
+		return buf.String()
+	}
+}
+
 // logMessage prints a styled message with consistent alignment
 func logMessage(box lipgloss.Style, tag string, message string) {
 	// Set a consistent width for the tag box and center the text
@@ -601,56 +760,59 @@ func logMessage(box lipgloss.Style, tag string, message string) {
 	fmt.Fprintln(os.Stderr, centeredBox.Render(paddedTag)+" "+styles.info.Render(message))
 }
 
-func saveCanvasToImage(canvas *render.Canvas, config *Config) error {
-	// If no output file is specified, use png as default
+func saveImageToFile(img image.Image, config *Config) (string, error) {
 	if config.OutputFile == "" {
-		config.OutputFile = "output.png"
+		return "", nil
 	}
 
+	// Apply template to filename
+	filenameFunc := newFilenameFunc(config.OutputFile, config)
+	resolvedFilename := filenameFunc()
+
+	// Expand any environment variables and tilde in the path
+	resolvedFilename = expandPath(resolvedFilename)
+
 	// Get the extension from the filename
-	ext := strings.ToLower(filepath.Ext(config.OutputFile))
+	ext := strings.ToLower(filepath.Ext(resolvedFilename))
 	if ext == "" {
 		ext = ".png"
-		config.OutputFile += ext
+		resolvedFilename += ext
+	}
+
+	// Ensure the directory exists
+	if dir := filepath.Dir(resolvedFilename); dir != "" {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return "", fmt.Errorf("failed to create directory: %v", err)
+		}
 	}
 
 	// Save in the format matching the extension
 	switch ext {
 	case ".png":
-		return canvas.SaveAsPNG(config.OutputFile)
+		f, err := os.Create(resolvedFilename)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		return resolvedFilename, png.Encode(f, img)
 	case ".jpg", ".jpeg":
-		return canvas.SaveAsJPEG(config.OutputFile)
+		f, err := os.Create(resolvedFilename)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		return resolvedFilename, jpeg.Encode(f, img, nil)
 	case ".bmp":
-		return canvas.SaveAsBMP(config.OutputFile)
+		f, err := os.Create(resolvedFilename)
+		if err != nil {
+			return "", err
+		}
+		defer f.Close()
+
+		return resolvedFilename, bmp.Encode(f, img)
 	default:
-		return fmt.Errorf("unsupported file format: %s", ext)
-	}
-}
-
-func newPromptFunc(template string) func(command string) string {
-	return func(command string) string {
-		prompt := template
-
-		// Replace placeholders with actual values
-		if strings.Contains(prompt, "[user]") {
-			if usr, err := user.Current(); err == nil {
-				prompt = strings.ReplaceAll(prompt, "[user]", usr.Username)
-			}
-		}
-		if strings.Contains(prompt, "[host]") {
-			if host, err := os.Hostname(); err == nil {
-				prompt = strings.ReplaceAll(prompt, "[host]", host)
-			}
-		}
-		if strings.Contains(prompt, "[path]") {
-			if cwd, err := os.Getwd(); err == nil {
-				prompt = strings.ReplaceAll(prompt, "[path]", cwd)
-			}
-		}
-		if strings.Contains(prompt, "[command]") {
-			prompt = strings.ReplaceAll(prompt, "[command]", command)
-		}
-
-		return prompt
+		return "", fmt.Errorf("unsupported file format: %s", ext)
 	}
 }
