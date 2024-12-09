@@ -12,16 +12,24 @@ import (
 
 func getBackgroundColor(style *chroma.Style) color.Color {
 	bgColor := style.Get(chroma.Background)
-	if bgColor.Background == 0 && bgColor.Colour == 0 {
-		// Default to white background if none is provided
-		return color.RGBA{R: 255, G: 255, B: 255, A: 255}
+	if bgColor.Background != 0 {
+		return color.RGBA{
+			R: bgColor.Background.Red(),
+			G: bgColor.Background.Green(),
+			B: bgColor.Background.Blue(),
+			A: 255,
+		}
 	}
-	return color.RGBA{
-		R: bgColor.Background.Red(),
-		G: bgColor.Background.Green(),
-		B: bgColor.Background.Blue(),
-		A: 255,
+	if bgColor.Colour != 0 {
+		return color.RGBA{
+			R: bgColor.Colour.Red(),
+			G: bgColor.Colour.Green(),
+			B: bgColor.Colour.Blue(),
+			A: 255,
+		}
 	}
+	// Default to white background if none is provided
+	return color.RGBA{R: 255, G: 255, B: 255, A: 255}
 }
 
 func getGutterColor(style *chroma.Style) color.Color {
@@ -133,16 +141,36 @@ func isLight(c chroma.Colour) bool {
 	return brightness > 128
 }
 
-func getColorFromChroma(c chroma.Colour) color.Color {
-	if c == 0 {
-		// Default to black text if no color is provided
-		return color.RGBA{R: 74, G: 74, B: 74, A: 255}
+func getColorFromChroma(style *chroma.Style, c chroma.Colour) color.Color {
+	if c != 0 {
+		return color.RGBA{
+			R: c.Red(),
+			G: c.Green(),
+			B: c.Blue(),
+			A: 255,
+		}
 	}
-	return color.RGBA{
-		R: c.Red(),
-		G: c.Green(),
-		B: c.Blue(),
-		A: 255,
+
+	// If no specific color is provided, use the theme's "Other" color as the default text color
+	otherColor := style.Get(chroma.Other)
+	if otherColor.Colour != 0 {
+		return color.RGBA{
+			R: otherColor.Colour.Red(),
+			G: otherColor.Colour.Green(),
+			B: otherColor.Colour.Blue(),
+			A: 255,
+		}
+	}
+
+	// If no "Other" color is available, base the color on the background
+	bg := getBackgroundColor(style)
+	bgRGBA := bg.(color.RGBA)
+	if isLight(chroma.Colour(uint32(bgRGBA.R)<<16 | uint32(bgRGBA.G)<<8 | uint32(bgRGBA.B))) {
+		// For light backgrounds, use a darker gray
+		return color.RGBA{R: 74, G: 74, B: 74, A: 255}
+	} else {
+		// For dark backgrounds, use a light gray
+		return color.RGBA{R: 204, G: 204, B: 204, A: 255}
 	}
 }
 

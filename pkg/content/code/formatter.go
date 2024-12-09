@@ -112,7 +112,7 @@ func Highlight(code string, opts *CodeStyle) (*HighlightedCode, error) {
 	gutterColor := getGutterColor(style)
 	lineNumberColor := getLineNumberColor(style)
 	highlightColor := getHighlightColor(style)
-	commentColor := getColorFromChroma(style.Get(chroma.Comment).Colour)
+	commentColor := getColorFromChroma(style, style.Get(chroma.Comment).Colour)
 
 	formatter := &customFormatter{
 		highlightedLines: make(map[int]bool),
@@ -185,10 +185,10 @@ type customFormatter struct {
 	currentColumn    int // Track current column position for tab expansion
 }
 
-func (f *customFormatter) createToken(text string, entry chroma.StyleEntry) Token {
+func (f *customFormatter) createToken(text string, entry chroma.StyleEntry, style *chroma.Style) Token {
 	return Token{
 		Text:      text,
-		Color:     getColorFromChroma(entry.Colour),
+		Color:     getColorFromChroma(style, entry.Colour),
 		Bold:      entry.Bold == chroma.Yes,
 		Italic:    entry.Italic == chroma.Yes && !entry.NoInherit,
 		Underline: entry.Underline == chroma.Yes,
@@ -216,7 +216,7 @@ func (f *customFormatter) addToken(text string, tokenType chroma.TokenType, styl
 
 	// Add the token with expanded text
 	if expandedText != "" {
-		f.currentLine.Tokens = append(f.currentLine.Tokens, f.createToken(expandedText, style.Get(tokenType)))
+		f.currentLine.Tokens = append(f.currentLine.Tokens, f.createToken(expandedText, style.Get(tokenType), style))
 	}
 }
 
@@ -242,7 +242,7 @@ func (f *customFormatter) processNewlines(text string, tokenType chroma.TokenTyp
 	if parts[lastIndex] != "" {
 		expandedText, col := expandTabs(parts[lastIndex], 0, f.tabWidth)
 		if expandedText != "" {
-			nextLine.Tokens = append(nextLine.Tokens, f.createToken(expandedText, style.Get(tokenType)))
+			nextLine.Tokens = append(nextLine.Tokens, f.createToken(expandedText, style.Get(tokenType), style))
 			f.currentColumn = col
 		}
 	} else {
