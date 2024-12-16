@@ -10,7 +10,6 @@ Goshot is a powerful Go library and CLI tool for creating beautiful screenshots 
     <img src=".github/example.png">
 </div>
 
-
 ## ✨ Features
 
 - 🎨 Beautiful syntax highlighting with multiple themes
@@ -40,6 +39,7 @@ go get github.com/watzon/goshot
 #### Package Managers
 
 ##### Arch Linux (AUR)
+
 ```bash
 # Using yay
 yay -S goshot-bin
@@ -49,6 +49,7 @@ paru -S goshot-bin
 ```
 
 ##### Ubuntu/Debian
+
 ```bash
 # Add the PPA
 sudo add-apt-repository ppa:watzon/goshot

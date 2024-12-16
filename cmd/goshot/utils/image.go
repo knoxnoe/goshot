@@ -7,13 +7,13 @@ import (
 	"os"
 
 	"github.com/atotto/clipboard"
+	"github.com/watzon/goshot/background"
+	"github.com/watzon/goshot/chrome"
 	"github.com/watzon/goshot/cmd/goshot/config"
-	"github.com/watzon/goshot/pkg/background"
-	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/content/code"
-	content_term "github.com/watzon/goshot/pkg/content/term"
-	"github.com/watzon/goshot/pkg/fonts"
-	"github.com/watzon/goshot/pkg/render"
+	"github.com/watzon/goshot/content/code"
+	content_term "github.com/watzon/goshot/content/term"
+	"github.com/watzon/goshot/fonts"
+	"github.com/watzon/goshot/render"
 )
 
 // RenderCode renders code content to an image with the given configuration

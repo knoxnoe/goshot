@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/watzon/goshot/cmd/goshot/config"
 	"github.com/watzon/goshot/cmd/goshot/utils"
-	"github.com/watzon/goshot/pkg/content/term"
+	"github.com/watzon/goshot/content/term"
 )
 
 var execCmd = &cobra.Command{

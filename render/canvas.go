@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/watzon/goshot/pkg/background"
-	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/content"
+	"github.com/watzon/goshot/background"
+	"github.com/watzon/goshot/chrome"
+	"github.com/watzon/goshot/content"
 )
 
 // Canvas represents a rendering canvas with all necessary configuration

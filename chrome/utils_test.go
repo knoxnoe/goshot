@@ -6,7 +6,7 @@ import (
 
 	"github.com/fogleman/gg"
 	"github.com/stretchr/testify/assert"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/fonts"
 )
 
 func TestDrawTitleText(t *testing.T) {

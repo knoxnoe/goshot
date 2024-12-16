@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/watzon/goshot/cmd/goshot/config"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/fonts"
 )
 
 var fontsCmd = &cobra.Command{

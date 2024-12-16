@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/watzon/goshot/cmd/goshot/config"
-	"github.com/watzon/goshot/pkg/content/code"
+	"github.com/watzon/goshot/content/code"
 )
 
 var languagesCmd = &cobra.Command{

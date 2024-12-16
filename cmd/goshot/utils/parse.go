@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/watzon/goshot/pkg/content"
-	"github.com/watzon/goshot/pkg/content/code"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/content"
+	"github.com/watzon/goshot/content/code"
+	"github.com/watzon/goshot/fonts"
 )
 
 // ParseLineRanges parses line range strings into content.LineRange structs

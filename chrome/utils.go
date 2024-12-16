@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"github.com/fogleman/gg"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/fonts"
 )
 
 // WindowStyle represents the style of window controls (macOS, Windows, etc)

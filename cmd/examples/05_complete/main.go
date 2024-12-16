@@ -6,11 +6,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/watzon/goshot/pkg/background"
-	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/content/code"
-	"github.com/watzon/goshot/pkg/fonts"
-	"github.com/watzon/goshot/pkg/render"
+	"github.com/watzon/goshot/background"
+	"github.com/watzon/goshot/chrome"
+	"github.com/watzon/goshot/content/code"
+	"github.com/watzon/goshot/fonts"
+	"github.com/watzon/goshot/render"
 )
 
 func main() {

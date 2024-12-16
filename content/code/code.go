@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/watzon/goshot/pkg/content"
-	"github.com/watzon/goshot/pkg/fonts"
+	"github.com/watzon/goshot/content"
+	"github.com/watzon/goshot/fonts"
 	"golang.org/x/image/font"
 	"golang.org/x/image/math/fixed"
 )
@@ -532,7 +532,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 		var fullText strings.Builder
 		lineStarts := make([]int, len(lines))
 		currentPos := 0
-		
+
 		for i, line := range lines {
 			lineStarts[i] = currentPos
 			text := getLineText(line)
@@ -554,8 +554,8 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 				// Check if this range overlaps with the current line
 				if r.StartIndex <= lineEnd && r.EndIndex > lineStart {
 					// Calculate the portion of the range that falls within this line
-					startInLine := max(0, r.StartIndex - lineStart)
-					endInLine := min(lineEnd - lineStart, r.EndIndex - lineStart)
+					startInLine := max(0, r.StartIndex-lineStart)
+					endInLine := min(lineEnd-lineStart, r.EndIndex-lineStart)
 
 					lineRange := RedactionRange{
 						StartIndex: startInLine,
@@ -578,7 +578,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	// Track areas to blur
 	type blurArea struct {
 		startX, startY int
-		width         int
+		width          int
 	}
 	var currentBlurArea *blurArea
 	var blurAreas []blurArea
@@ -586,23 +586,23 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	// Track character offsets for wrapped lines
 	type wrappedLineInfo struct {
 		originalLineIdx int
-		startOffset    int  // Character offset where this wrapped line starts in the original line
+		startOffset     int // Character offset where this wrapped line starts in the original line
 	}
 	wrappedLineOffsets := make([]wrappedLineInfo, len(wrappedLines))
 	currentOffset := 0
 	for i, tokens := range wrappedLines {
 		originalLineIdx := lineToWrappedMap[i]
-		
+
 		// If this is the first wrapped line for this original line, reset the offset
 		if i == 0 || lineToWrappedMap[i-1] != originalLineIdx {
 			currentOffset = 0
 		}
-		
+
 		wrappedLineOffsets[i] = wrappedLineInfo{
 			originalLineIdx: originalLineIdx,
-			startOffset:    currentOffset,
+			startOffset:     currentOffset,
 		}
-		
+
 		// Calculate the length of this wrapped line for the next offset
 		lineLength := 0
 		for _, token := range tokens {
@@ -618,7 +618,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 
 	// Draw line numbers and text
 	currentY = config.PaddingTop
-	
+
 	for i, tokens := range wrappedLines {
 		// Draw line numbers if enabled
 		if config.ShowLineNumbers {
@@ -658,7 +658,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 					if len(redactionRanges) > 0 {
 						shouldRedact = ShouldRedact(currentColumn+j, redactionRanges)
 					}
-					
+
 					if shouldRedact {
 						if r.Style.RedactionConfig.Style == RedactionStyleBlock {
 							// Draw a block character
@@ -688,7 +688,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 							drawText(img, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
 						}
 					}
-					
+
 					charWidth := font.MeasureString(getFaceForToken(token), string(ch)).Round()
 					if currentBlurArea != nil {
 						currentBlurArea.width += charWidth
@@ -705,7 +705,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 					if len(redactionRanges) > 0 {
 						shouldRedact = ShouldRedact(currentColumn+j, redactionRanges)
 					}
-					
+
 					if shouldRedact {
 						if r.Style.RedactionConfig.Style == RedactionStyleBlock {
 							// Draw a block character
@@ -735,7 +735,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 							drawText(img, getFaceForToken(token), string(ch), charX, currentY+metrics.Ascent.Round(), token.Color, token)
 						}
 					}
-					
+
 					charWidth := font.MeasureString(getFaceForToken(token), string(ch)).Round()
 					if currentBlurArea != nil {
 						currentBlurArea.width += charWidth
@@ -746,13 +746,13 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 				currentColumn += len(token.Text)
 			}
 		}
-		
+
 		// If we have an unfinished blur area at the end of the line, add it
 		if currentBlurArea != nil {
 			blurAreas = append(blurAreas, *currentBlurArea)
 			currentBlurArea = nil
 		}
-		
+
 		currentY += lineHeight
 	}
 
@@ -760,16 +760,16 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 	if r.Style.RedactionConfig != nil && r.Style.RedactionConfig.Style == RedactionStyleBlur {
 		metrics := regularFace.Face.Metrics()
 		lineHeight := metrics.Height.Round()
-		
+
 		for _, area := range blurAreas {
 			redactArea(blurImg, area.startX, area.startY, area.width, lineHeight, r.Style.RedactionConfig.BlurRadius)
 		}
-		
+
 		// Apply any manual redactions
 		for _, area := range r.Style.RedactionConfig.ManualRedactions {
 			redactArea(blurImg, area.X, area.Y, area.Width, area.Height, r.Style.RedactionConfig.BlurRadius)
 		}
-		
+
 		img = blurImg
 	} else if r.Style.RedactionConfig != nil {
 		// Apply manual redactions with block style
@@ -778,7 +778,7 @@ func (r *CodeRenderer) Render() (image.Image, error) {
 			blockChar := "█"
 			blockWidth := font.MeasureString(regularFace.Face, blockChar).Round()
 			numBlocks := area.Width / blockWidth
-			
+
 			for y := area.Y; y < area.Y+area.Height; y += lineHeight {
 				for i := 0; i < numBlocks; i++ {
 					drawText(img, regularFace.Face, blockChar, area.X+(i*blockWidth), y+metrics.Ascent.Round(), color.Black, Token{Text: blockChar})

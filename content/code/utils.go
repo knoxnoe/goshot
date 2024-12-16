@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/chroma/v2"
-	"github.com/watzon/goshot/pkg/content"
+	"github.com/watzon/goshot/content"
 	"golang.org/x/image/font"
 )
 

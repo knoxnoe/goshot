@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/watzon/goshot/pkg/background"
+	"github.com/watzon/goshot/background"
 )
 
 // ParseHexColor parses a hex color string into a color.Color
