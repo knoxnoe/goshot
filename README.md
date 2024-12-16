@@ -69,9 +69,9 @@ import (
     "image/color"
     "log"
 
-    "github.com/watzon/goshot/pkg/background"
-    "github.com/watzon/goshot/pkg/chrome"
-    "github.com/watzon/goshot/pkg/render"
+    "github.com/watzon/goshot/background"
+    "github.com/watzon/goshot/chrome"
+    "github.com/watzon/goshot/render"
 )
 
 func main() {

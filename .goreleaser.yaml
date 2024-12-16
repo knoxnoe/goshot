@@ -19,9 +19,9 @@ builds:
     main: ./cmd/goshot
     ldflags:
       - -s -w
-      - -X github.com/watzon/goshot/pkg/version.Version={{.Version}}
-      - -X github.com/watzon/goshot/pkg/version.Commit={{.Commit}}
-      - -X github.com/watzon/goshot/pkg/version.Date={{.Date}}
+      - -X github.com/watzon/goshot/version.Version={{.Version}}
+      - -X github.com/watzon/goshot/version.Commit={{.Commit}}
+      - -X github.com/watzon/goshot/version.Date={{.Date}}
 
 nfpms:
   - vendor: Chris Watson
