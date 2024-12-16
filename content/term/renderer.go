@@ -168,10 +168,8 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	// Calculate final dimensions
 	width := t.Width
 	height := t.Height
-	if width == 0 || r.Style.AutoSize {
-		width = t.MaxX + t.PaddingRight // Add right padding
-	}
-	if height == 0 || r.Style.AutoSize {
+	if r.Style.AutoSize {
+		width = t.MaxX + t.PaddingRight   // Add right padding
 		height = t.MaxY + t.PaddingBottom // Add bottom padding
 	}
 
@@ -240,10 +238,17 @@ func (r *TermRenderer) Render() (image.Image, error) {
 	// Fill background
 	draw.Draw(img, img.Bounds(), &image.Uniform{t.DefaultBg}, image.Point{}, draw.Src)
 
-	// Draw cells
-	for y := 0; y < height; y++ {
+	// Calculate the last usable line (accounting for bottom padding)
+	lastUsableLine := height - t.PaddingBottom - 1
+
+	// Draw cells from top to bottom, stopping at the last usable line
+	for y := t.PaddingTop; y <= lastUsableLine; y++ {
+		if y >= len(t.Cells) {
+			break
+		}
+
 		for x := 0; x < width; x++ {
-			if y >= len(t.Cells) || x >= len(t.Cells[y]) {
+			if x >= len(t.Cells[y]) {
 				continue
 			}
 

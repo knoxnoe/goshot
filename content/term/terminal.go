@@ -107,21 +107,4 @@ func (t *Terminal) SetCell(x, y int, ch rune) {
 func (t *Terminal) NewLine() {
 	t.CursorX = t.PaddingLeft
 	t.CursorY++
-	// If we're at the top padding, skip to the content area
-	if t.CursorY < t.PaddingTop {
-		t.CursorY = t.PaddingTop
-	}
-	if t.Height > 0 && t.CursorY >= t.Height {
-		// Scroll up, preserving padding area
-		copy(t.Cells[t.PaddingTop:], t.Cells[t.PaddingTop+1:])
-		t.CursorY = t.Height - 1
-		// Clear the new line
-		for x := range t.Cells[t.CursorY] {
-			t.Cells[t.CursorY][x] = Cell{
-				Char:    ' ',
-				FgColor: t.DefaultFg,
-				BgColor: t.DefaultBg,
-			}
-		}
-	}
 }

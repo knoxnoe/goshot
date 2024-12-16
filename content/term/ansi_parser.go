@@ -2,6 +2,7 @@ package term
 
 import (
 	"image/color"
+	"log"
 	"strconv"
 	"strings"
 
@@ -24,7 +25,15 @@ func NewANSIParser(t *Terminal) *ANSIParser {
 func (ap *ANSIParser) Parse(input []byte) {
 	defer ansi.PutParser(ap.parser)
 
+	// Calculate the last usable line (accounting for bottom padding)
+	lastUsableLine := ap.terminal.Height - ap.terminal.PaddingBottom - 1
+
 	for len(input) > 0 {
+		// If we're beyond the last usable line, stop parsing
+		if ap.terminal.CursorY > lastUsableLine {
+			break
+		}
+
 		seq, width, n, newState := ansi.DecodeSequence(input, ap.state, ap.parser)
 		if n == 0 {
 			input = input[1:]
@@ -33,10 +42,13 @@ func (ap *ANSIParser) Parse(input []byte) {
 
 		if width > 0 {
 			r := []rune(string(seq))[0]
-			ap.terminal.SetCell(ap.terminal.CursorX, ap.terminal.CursorY, r)
-			ap.terminal.CursorX++
-			if ap.terminal.Width > 0 && ap.terminal.CursorX >= ap.terminal.Width {
-				ap.terminal.NewLine()
+			// Only set the cell if we're within bounds
+			if ap.terminal.CursorY <= lastUsableLine {
+				ap.terminal.SetCell(ap.terminal.CursorX, ap.terminal.CursorY, r)
+				ap.terminal.CursorX++
+				if ap.terminal.Width > 0 && ap.terminal.CursorX >= ap.terminal.Width {
+					ap.terminal.NewLine()
+				}
 			}
 		} else {
 			ap.handleControlSequence(seq)
@@ -60,9 +72,11 @@ func (ap *ANSIParser) handleControlSequence(seq []byte) {
 		case "CSI":
 			ap.handleCSISequence(s)
 		case "OSC":
-			// Ignore OSC sequences
+			// Log or handle OSC sequences if needed
+			log.Println("Ignoring OSC sequence:", s)
 		case "DCS":
-			// Ignore DCS sequences
+			// Log or handle DCS sequences if needed
+			log.Println("Ignoring DCS sequence:", s)
 		}
 	}
 }
@@ -91,7 +105,11 @@ func (ap *ANSIParser) handleSGR(s string) {
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "m")
 	paramSlice := strings.Split(params, ";")
 	for i := 0; i < len(paramSlice); i++ {
-		code, _ := strconv.Atoi(paramSlice[i])
+		code, err := strconv.Atoi(paramSlice[i])
+		if err != nil {
+			log.Println("Invalid SGR parameter:", paramSlice[i])
+			continue
+		}
 		switch {
 		case code == 0:
 			ap.terminal.CurrAttrs = Attributes{}
@@ -165,7 +183,12 @@ func (ap *ANSIParser) handleCHA(s string) {
 	n := 1
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "G")
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid CHA parameter:", params)
+			n = 1
+		}
 	}
 	n = max(1, n)
 	ap.terminal.CursorX = min(ap.terminal.Width-ap.terminal.PaddingRight-1, ap.terminal.PaddingLeft+n-1)
@@ -177,10 +200,20 @@ func (ap *ANSIParser) handleCUP(s string) {
 	if params != "" {
 		parts := strings.Split(params, ";")
 		if len(parts) >= 1 {
-			row, _ = strconv.Atoi(parts[0])
+			var err error
+			row, err = strconv.Atoi(parts[0])
+			if err != nil {
+				log.Println("Invalid CUP row parameter:", parts[0])
+				row = 1
+			}
 		}
 		if len(parts) >= 2 {
-			col, _ = strconv.Atoi(parts[1])
+			var err error
+			col, err = strconv.Atoi(parts[1])
+			if err != nil {
+				log.Println("Invalid CUP column parameter:", parts[1])
+				col = 1
+			}
 		}
 	}
 	ap.terminal.CursorY = min(ap.terminal.Height-1, max(1, row))
@@ -191,7 +224,12 @@ func (ap *ANSIParser) handleCUU(s string) {
 	n := 1
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "A")
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid CUU parameter:", params)
+			n = 1
+		}
 	}
 	ap.terminal.CursorY = max(1, ap.terminal.CursorY-n)
 }
@@ -200,7 +238,12 @@ func (ap *ANSIParser) handleCUD(s string) {
 	n := 1
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "B")
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid CUD parameter:", params)
+			n = 1
+		}
 	}
 	ap.terminal.CursorY = min(ap.terminal.Height-1, ap.terminal.CursorY+n)
 }
@@ -209,7 +252,12 @@ func (ap *ANSIParser) handleCUF(s string) {
 	n := 1
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "C")
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid CUF parameter:", params)
+			n = 1
+		}
 	}
 	ap.terminal.CursorX = min(ap.terminal.Width-ap.terminal.PaddingRight-1, ap.terminal.CursorX+n)
 }
@@ -218,7 +266,12 @@ func (ap *ANSIParser) handleCUB(s string) {
 	n := 1
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "D")
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid CUB parameter:", params)
+			n = 1
+		}
 	}
 	ap.terminal.CursorX = max(ap.terminal.PaddingLeft, ap.terminal.CursorX-n)
 }
@@ -227,7 +280,12 @@ func (ap *ANSIParser) handleEL(s string) {
 	params := strings.TrimSuffix(strings.TrimPrefix(s, "\x1b["), "K")
 	n := 0
 	if params != "" {
-		n, _ = strconv.Atoi(params)
+		var err error
+		n, err = strconv.Atoi(params)
+		if err != nil {
+			log.Println("Invalid EL parameter:", params)
+			n = 0
+		}
 	}
 	switch n {
 	case 0:
