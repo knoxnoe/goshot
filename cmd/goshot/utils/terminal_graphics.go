@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // TerminalGraphicsProtocol represents different terminal graphics protocols
@@ -193,23 +191,6 @@ func RenderImageToTerminal(img image.Image) (string, error) {
 	detection := DetectGraphicsProtocol()
 	var result strings.Builder
 
-	// Start with debug info in a muted color
-	result.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render(fmt.Sprintf("Terminal Detection:\n%s\n", detection.Details)))
-
-	// Add image size info
-	result.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render(fmt.Sprintf("Image size: %dx%d\n", img.Bounds().Dx(), img.Bounds().Dy())))
-
-	// Add mode info if in fallback
-	if ForceANSIFallback {
-		result.WriteString(lipgloss.NewStyle().
-			Foreground(lipgloss.Color("241")).
-			Render("Forcing ANSI fallback mode (press F5 to toggle)\n"))
-	}
-
 	// Add a separator
 	result.WriteString("\n")
 
@@ -252,27 +233,16 @@ func renderKittyGraphics(img image.Image) (string, error) {
 
 	var result strings.Builder
 
-	// First add debug info
-	result.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render(fmt.Sprintf("Terminal Detection:\n")))
-	result.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render(fmt.Sprintf("Terminal type: xterm-ghostty\n")))
-	result.WriteString(lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Render(fmt.Sprintf("Image size: %dx%d\n\n", bounds.Dx(), bounds.Dy())))
-
 	// Position cursor for image (after debug info)
 	result.WriteString("\x1b[?25l") // Hide cursor
 	result.WriteString("\x1b[H")    // Move to top
 	result.WriteString("\x1b[55C")  // Move to preview section
-	result.WriteString("\x1b[20B")  // Move down past debug info
+	result.WriteString("\x1b[3B")   // Move down past debug info
 
 	// Place the image
 	result.WriteString("\x1b_G") // Start graphics command
 	result.WriteString(fmt.Sprintf(
-		"a=T,f=32,s=%d,v=%d,q=2", // q=2 suppresses responses
+		"a=T,f=32,s=%d,v=%d,q=2,z=-1", // q=2 suppresses responses
 		bounds.Dx(),
 		bounds.Dy(),
 	))

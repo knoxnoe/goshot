@@ -16,13 +16,14 @@ import (
 )
 
 var (
-	docStyle = lipgloss.NewStyle().Margin(1, 2)
+	docStyle = lipgloss.NewStyle()
 
 	// Form styles
 	formStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 0)
+			Padding(0, 1).
+			MarginRight(1)
 
 	inputStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.NormalBorder()).
@@ -33,13 +34,13 @@ var (
 	previewStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 0)
+			Padding(0, 1).
+			MarginLeft(1)
 
 	// Section styles
 	sectionStyle = lipgloss.NewStyle().
 			Bold(true).
-			Foreground(lipgloss.Color("62")).
-			MarginTop(1)
+			Foreground(lipgloss.Color("62"))
 )
 
 type formInput struct {
@@ -180,17 +181,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Calculate widths based on screen size
 		// Give more space to the preview area
-		formWidth := m.width / 3
+		availableWidth := m.width - 4 // Account for outer margins
+		formWidth := availableWidth / 3
 		if formWidth < 50 {
 			formWidth = 50 // Minimum form width
 		}
-		previewWidth := m.width - formWidth - 4
+
+		// Account for form width, margins between panes, and borders
+		previewWidth := availableWidth - formWidth - 2
 
 		// Update styles with new dimensions
 		formStyle = formStyle.Width(formWidth)
 		previewStyle = previewStyle.
 			Width(previewWidth).
-			Height(m.height - 2) // Account for margins
+			Height(m.height - 2)
 
 		if m.viewport.Width == 0 {
 			m.viewport = viewport.New(previewWidth-2, m.height-4)
@@ -331,20 +335,20 @@ func (m model) View() string {
 
 	// Build form content
 	var formContent strings.Builder
-	for _, section := range []string{"Input/Output", "Appearance", "Gradient", "Layout", "Shadow"} {
+	for i, section := range []string{"Input/Output", "Appearance", "Gradient", "Layout", "Shadow"} {
 		if inputs, ok := sections[section]; ok {
+			if i > 0 {
+				formContent.WriteString("\n") // Add spacing between sections
+			}
 			formContent.WriteString(sectionStyle.Render(section))
 			formContent.WriteString("\n")
 			formContent.WriteString(strings.Join(inputs, "\n"))
-			formContent.WriteString("\n")
 		}
 	}
-
-	// Create preview content
+	// Create preview content with section style to match form sections
 	previewContent := lipgloss.JoinVertical(
 		lipgloss.Left,
-		lipgloss.NewStyle().Bold(true).Render("Preview"),
-		"",
+		sectionStyle.Render("Preview"),
 		m.preview,
 	)
 
