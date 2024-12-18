@@ -34,6 +34,8 @@ type Config struct {
 	BackgroundColor    string
 	BackgroundImage    string
 	BackgroundImageFit string
+	BackgroundBlur     float64
+	BackgroundBlurType string
 	NoLineNumbers      bool
 	CornerRadius       float64
 	NoWindowControls   bool
@@ -159,6 +161,8 @@ func bindConfig() {
 	Default.BackgroundColor = viper.GetString("appearance.background.color")
 	Default.BackgroundImage = viper.GetString("appearance.background.image.source")
 	Default.BackgroundImageFit = viper.GetString("appearance.background.image_fit")
+	Default.BackgroundBlur = viper.GetFloat64("appearance.background.blur.radius")
+	Default.BackgroundBlurType = viper.GetString("appearance.background.blur.type")
 	Default.NoLineNumbers = !viper.GetBool("appearance.line_numbers")
 	Default.CornerRadius = viper.GetFloat64("appearance.corner_radius")
 	Default.NoWindowControls = !viper.GetBool("appearance.window.controls")
@@ -241,6 +245,8 @@ func Initialize() {
 	viper.SetDefault("appearance.background.color", "#ABB8C3")
 	viper.SetDefault("appearance.background.image.source", "")
 	viper.SetDefault("appearance.background.image_fit", "cover")
+	viper.SetDefault("appearance.background.blur.radius", 0.0)
+	viper.SetDefault("appearance.background.blur.type", "gaussian")
 	viper.SetDefault("appearance.background.gradient.type", "")
 	viper.SetDefault("appearance.background.gradient.stops", []string{"#232323;0", "#383838;100"})
 	viper.SetDefault("appearance.background.gradient.angle", 45.0)

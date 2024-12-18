@@ -179,6 +179,8 @@ func makeAppearanceFlagSet() *pflag.FlagSet {
 	fs.StringVarP(&config.Default.BackgroundColor, "background", "b", "#ABB8C3", "Background color")
 	fs.StringVar(&config.Default.BackgroundImage, "background-image", "", "Background image path")
 	fs.StringVar(&config.Default.BackgroundImageFit, "background-image-fit", "cover", "Background image fit (contain, cover, fill, stretch, tile)")
+	fs.Float64Var(&config.Default.BackgroundBlur, "background-blur", 0.0, "Background blur radius")
+	fs.StringVar(&config.Default.BackgroundBlurType, "background-blur-type", "gaussian", "Background blur type (gaussian, pixelated)")
 	fs.Float64Var(&config.Default.CornerRadius, "corner-radius", 10.0, "Corner radius of the image")
 	fs.BoolVar(&config.Default.NoWindowControls, "no-window-controls", false, "Hide window controls")
 	fs.StringVar(&config.Default.WindowTitle, "window-title", "", "Window title")

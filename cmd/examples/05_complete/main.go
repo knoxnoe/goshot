@@ -121,7 +121,7 @@ func main() {
 	}
 	imageBackground = imageBackground.
 		WithScaleMode(background.ImageScaleTile).
-		WithBlurRadius(0.5)
+		WithBlur(background.GaussianBlur, 0.5)
 
 	// Set up the code style
 	content := code.DefaultRenderer(input).

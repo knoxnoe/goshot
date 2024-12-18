@@ -5,6 +5,8 @@ import (
 	"image/color"
 	"image/draw"
 	"math"
+
+	"github.com/disintegration/imaging"
 )
 
 // GradientType represents the type of gradient
@@ -41,6 +43,7 @@ type GradientBackground struct {
 	centerX      float64 // Center X position for radial/angular gradients (0-1)
 	centerY      float64 // Center Y position for radial/angular gradients (0-1)
 	intensity    float64 // Intensity modifier for special gradients (spiral tightness, star points)
+	blur         *BlurConfig
 	padding      Padding
 	cornerRadius float64
 	shadow       Shadow
@@ -55,6 +58,7 @@ func NewGradientBackground(gradientType GradientType, stops ...GradientStop) Gra
 		centerX:      0.5, // Default to center
 		centerY:      0.5,
 		intensity:    5.0, // Default intensity
+		blur:         nil,
 		padding:      NewPadding(20),
 		cornerRadius: 0,
 		shadow:       nil,
@@ -77,6 +81,15 @@ func (bg GradientBackground) WithCenter(x, y float64) GradientBackground {
 // WithIntensity sets the intensity modifier for special gradients
 func (bg GradientBackground) WithIntensity(intensity float64) GradientBackground {
 	bg.intensity = intensity
+	return bg
+}
+
+// WithBlur sets the blur configuration for the gradient
+func (bg GradientBackground) WithBlur(blurType BlurType, radius float64) GradientBackground {
+	bg.blur = &BlurConfig{
+		Type:   blurType,
+		Radius: radius,
+	}
 	return bg
 }
 
@@ -254,6 +267,40 @@ func (bg GradientBackground) Render(content image.Image) (image.Image, error) {
 				gradientImg.Set(x, y, c)
 			}
 		}
+	}
+
+	// Apply blur if configured
+	if bg.blur != nil {
+		// Convert RGBA to NRGBA for imaging operations
+		nrgba := imaging.Clone(gradientImg)
+
+		switch bg.blur.Type {
+		case GaussianBlur:
+			nrgba = imaging.Blur(nrgba, bg.blur.Radius)
+		case PixelatedBlur:
+			// Create pixelated effect by scaling down and back up
+			w := nrgba.Bounds().Dx()
+			h := nrgba.Bounds().Dy()
+			// Scale factor based on radius (larger radius = more pixelation)
+			factor := math.Max(1, bg.blur.Radius)
+			smallW := int(float64(w) / factor)
+			smallH := int(float64(h) / factor)
+			if smallW < 1 {
+				smallW = 1
+			}
+			if smallH < 1 {
+				smallH = 1
+			}
+			// Scale down
+			small := imaging.Resize(nrgba, smallW, smallH, imaging.Box)
+			// Scale back up
+			nrgba = imaging.Resize(small, w, h, imaging.NearestNeighbor)
+		}
+
+		// Convert back to RGBA
+		result := image.NewRGBA(gradientImg.Bounds())
+		draw.Draw(result, result.Bounds(), nrgba, image.Point{}, draw.Src)
+		gradientImg = result
 	}
 
 	// Draw the content (with shadow) centered on the background

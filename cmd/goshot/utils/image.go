@@ -245,7 +245,23 @@ func makeCanvas(cfg *config.Config, args []string) (*render.Canvas, error) {
 		}
 		bg = background.
 			NewImageBackground(backgroundImage).
-			WithScaleMode(fit).
+			WithScaleMode(fit)
+
+		// Apply blur if configured
+		if cfg.BackgroundBlur > 0 {
+			var blurType background.BlurType
+			switch cfg.BackgroundBlurType {
+			case "gaussian":
+				blurType = background.GaussianBlur
+			case "pixelated":
+				blurType = background.PixelatedBlur
+			default:
+				return nil, fmt.Errorf("invalid blur type: %s", cfg.BackgroundBlurType)
+			}
+			bg = bg.(background.ImageBackground).WithBlur(blurType, cfg.BackgroundBlur)
+		}
+
+		bg = bg.(background.ImageBackground).
 			WithPaddingDetailed(cfg.PadVert, cfg.PadHoriz, cfg.PadVert, cfg.PadHoriz)
 	} else if cfg.GradientType != "" {
 		stops, err := ParseGradientStops(cfg.GradientStops)
@@ -277,7 +293,23 @@ func makeCanvas(cfg *config.Config, args []string) (*render.Canvas, error) {
 			WithAngle(cfg.GradientAngle).
 			WithCenter(cfg.GradientCenterX, cfg.GradientCenterY).
 			WithIntensity(cfg.GradientIntensity).
-			WithCenter(cfg.GradientCenterX, cfg.GradientCenterY).
+			WithCenter(cfg.GradientCenterX, cfg.GradientCenterY)
+
+		// Apply blur if configured
+		if cfg.BackgroundBlur > 0 {
+			var blurType background.BlurType
+			switch cfg.BackgroundBlurType {
+			case "gaussian":
+				blurType = background.GaussianBlur
+			case "pixelated":
+				blurType = background.PixelatedBlur
+			default:
+				return nil, fmt.Errorf("invalid blur type: %s", cfg.BackgroundBlurType)
+			}
+			bg = bg.(background.GradientBackground).WithBlur(blurType, cfg.BackgroundBlur)
+		}
+
+		bg = bg.(background.GradientBackground).
 			WithPaddingDetailed(cfg.PadVert, cfg.PadHoriz, cfg.PadVert, cfg.PadHoriz)
 	} else if cfg.BackgroundColor != "" {
 		// Parse background color

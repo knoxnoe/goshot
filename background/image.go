@@ -29,7 +29,7 @@ const (
 type ImageBackground struct {
 	image        image.Image
 	scaleMode    ImageScaleMode
-	blurRadius   float64
+	blur         *BlurConfig
 	opacity      float64
 	padding      Padding
 	cornerRadius float64
@@ -41,7 +41,7 @@ func NewImageBackground(img image.Image) ImageBackground {
 	return ImageBackground{
 		image:        img,
 		scaleMode:    ImageScaleFit,
-		blurRadius:   0,
+		blur:         nil,
 		opacity:      1.0,
 		padding:      NewPadding(20),
 		cornerRadius: 0,
@@ -81,9 +81,12 @@ func (bg ImageBackground) WithScaleModeString(mode string) ImageBackground {
 	return bg
 }
 
-// WithBlurRadius sets the blur radius for the background image
-func (bg ImageBackground) WithBlurRadius(radius float64) ImageBackground {
-	bg.blurRadius = radius
+// WithBlur sets the blur configuration for the background image
+func (bg ImageBackground) WithBlur(blurType BlurType, radius float64) ImageBackground {
+	bg.blur = &BlurConfig{
+		Type:   blurType,
+		Radius: radius,
+	}
 	return bg
 }
 
@@ -234,8 +237,37 @@ func (bg ImageBackground) Render(content image.Image) (image.Image, error) {
 	// Scale and process the background image
 	scaledImg := bg.scaleImage(width, height)
 
-	if bg.blurRadius > 0 {
-		scaledImg = imaging.Blur(scaledImg, bg.blurRadius)
+	if bg.blur != nil {
+		// Convert to NRGBA for imaging operations
+		nrgba := imaging.Clone(scaledImg)
+
+		switch bg.blur.Type {
+		case GaussianBlur:
+			nrgba = imaging.Blur(nrgba, bg.blur.Radius)
+		case PixelatedBlur:
+			// Create pixelated effect by scaling down and back up
+			w := nrgba.Bounds().Dx()
+			h := nrgba.Bounds().Dy()
+			// Scale factor based on radius (larger radius = more pixelation)
+			factor := math.Max(1, bg.blur.Radius)
+			smallW := int(float64(w) / factor)
+			smallH := int(float64(h) / factor)
+			if smallW < 1 {
+				smallW = 1
+			}
+			if smallH < 1 {
+				smallH = 1
+			}
+			// Scale down
+			small := imaging.Resize(nrgba, smallW, smallH, imaging.Box)
+			// Scale back up
+			nrgba = imaging.Resize(small, w, h, imaging.NearestNeighbor)
+		}
+
+		// Convert back to original format
+		result := image.NewRGBA(scaledImg.Bounds())
+		draw.Draw(result, result.Bounds(), nrgba, image.Point{}, draw.Src)
+		scaledImg = result
 	}
 
 	// Create the final image
