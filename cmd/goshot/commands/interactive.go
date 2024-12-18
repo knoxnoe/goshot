@@ -35,7 +35,9 @@ var (
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color("62")).
 			Padding(0, 1).
-			MarginLeft(1)
+			MarginLeft(1).
+			Height(24). // Set reasonable default height
+			Width(80)   // Set reasonable default width
 
 	// Section styles
 	sectionStyle = lipgloss.NewStyle().
@@ -143,8 +145,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "f5":
 			// Toggle between Kitty graphics and ANSI fallback
 			utils.ForceANSIFallback = !utils.ForceANSIFallback
-			m.updatePreview()
-			return m, nil
+			cmd := m.updatePreview()
+			return m, cmd
 		case "tab", "shift+tab", "up", "down":
 			s := msg.String()
 
@@ -171,8 +173,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(cmds...)
 		case "enter":
 			// Update preview when enter is pressed
-			m.updatePreview()
-			return m, nil
+			cmd := m.updatePreview()
+			return m, cmd
 		}
 
 	case tea.WindowSizeMsg:
@@ -204,7 +206,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Re-render preview with new dimensions
-		m.updatePreview()
+		cmds = append(cmds, m.updatePreview())
 	}
 
 	// Handle character input
@@ -222,7 +224,7 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m *model) updatePreview() {
+func (m *model) updatePreview() tea.Cmd {
 	// Update config from inputs
 	m.cfg.Input = m.inputs[0].textinput.Value()
 	m.cfg.OutputFile = m.inputs[1].textinput.Value()
@@ -267,7 +269,7 @@ func (m *model) updatePreview() {
 		m.preview = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("241")).
 			Render("Enter an input file path to see the preview")
-		return
+		return tea.EnableMouseCellMotion
 	}
 
 	// Read input file
@@ -276,7 +278,7 @@ func (m *model) updatePreview() {
 		m.preview = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("red")).
 			Render(fmt.Sprintf("Error reading file: %v", err))
-		return
+		return tea.EnableMouseCellMotion
 	}
 
 	// Create temporary file for preview
@@ -289,7 +291,7 @@ func (m *model) updatePreview() {
 		m.preview = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("red")).
 			Render(fmt.Sprintf("Error rendering code: %v", err))
-		return
+		return tea.EnableMouseCellMotion
 	}
 
 	// Wait a moment for the file to be written
@@ -301,7 +303,7 @@ func (m *model) updatePreview() {
 		m.preview = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("red")).
 			Render(fmt.Sprintf("Error loading preview: %v", err))
-		return
+		return tea.EnableMouseCellMotion
 	}
 
 	// Render the image using terminal graphics
@@ -310,10 +312,11 @@ func (m *model) updatePreview() {
 		m.preview = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("red")).
 			Render(fmt.Sprintf("Error rendering preview: %v", err))
-		return
+		return tea.EnableMouseCellMotion
 	}
 
 	m.preview = preview
+	return tea.EnableMouseCellMotion
 }
 
 func (m model) View() string {
@@ -345,11 +348,14 @@ func (m model) View() string {
 			formContent.WriteString(strings.Join(inputs, "\n"))
 		}
 	}
-	// Create preview content with section style to match form sections
+	// Create preview content with section style and ensure contained layout
 	previewContent := lipgloss.JoinVertical(
 		lipgloss.Left,
 		sectionStyle.Render("Preview"),
-		m.preview,
+		lipgloss.NewStyle().
+			Width(m.viewport.Width).
+			Height(m.viewport.Height).
+			Render(m.preview),
 	)
 
 	// Add help text at the bottom of the form
@@ -373,7 +379,11 @@ var interactiveCmd = &cobra.Command{
 	Use:   "interactive",
 	Short: "Launch interactive mode",
 	Run: func(cmd *cobra.Command, args []string) {
-		p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+		p := tea.NewProgram(
+			initialModel(),
+			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
+		)
 		if _, err := p.Run(); err != nil {
 			fmt.Printf("Error running program: %v", err)
 		}

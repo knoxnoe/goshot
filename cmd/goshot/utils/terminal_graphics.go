@@ -191,9 +191,6 @@ func RenderImageToTerminal(img image.Image) (string, error) {
 	detection := DetectGraphicsProtocol()
 	var result strings.Builder
 
-	// Add a separator
-	result.WriteString("\n")
-
 	// Render the image
 	var output string
 	var err error
@@ -211,9 +208,6 @@ func RenderImageToTerminal(img image.Image) (string, error) {
 
 	// Add the rendered output
 	result.WriteString(output)
-
-	// Add a separator after the image
-	result.WriteString("\n")
 	return result.String(), nil
 }
 
@@ -233,14 +227,8 @@ func renderKittyGraphics(img image.Image) (string, error) {
 
 	var result strings.Builder
 
-	// Position cursor for image (after debug info)
-	result.WriteString("\x1b[?25l") // Hide cursor
-	result.WriteString("\x1b[H")    // Move to top
-	result.WriteString("\x1b[55C")  // Move to preview section
-	result.WriteString("\x1b[3B")   // Move down past debug info
-
-	// Place the image
-	result.WriteString("\x1b_G") // Start graphics command
+	// Place the image using Kitty graphics protocol
+	result.WriteString("\x1b_G")
 	result.WriteString(fmt.Sprintf(
 		"a=T,f=32,s=%d,v=%d,q=2,z=-1", // q=2 suppresses responses
 		bounds.Dx(),
@@ -249,9 +237,6 @@ func renderKittyGraphics(img image.Image) (string, error) {
 	result.WriteString(";")
 	result.WriteString(encoded)
 	result.WriteString("\x1b\\")
-
-	// Reset terminal state
-	result.WriteString("\x1b[?25h") // Show cursor
 
 	return result.String(), nil
 }
@@ -279,7 +264,6 @@ func renderANSIFallback(img image.Image) (string, error) {
 	scaledHeight := int(float64(height) / scale)
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("Terminal preview (%dx%d):\n", scaledWidth, scaledHeight))
 
 	// Use block characters to represent pixels
 	for y := 0; y < scaledHeight; y++ {
