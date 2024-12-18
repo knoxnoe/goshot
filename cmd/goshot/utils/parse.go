@@ -11,6 +11,30 @@ import (
 	"github.com/watzon/goshot/fonts"
 )
 
+// ParseFloat64 parses a string to float64 with a default value
+func ParseFloat64(s string, defaultValue float64) float64 {
+	if s == "" {
+		return defaultValue
+	}
+	v, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return defaultValue
+	}
+	return v
+}
+
+// ParseInt parses a string to int with a default value
+func ParseInt(s string, defaultValue int) int {
+	if s == "" {
+		return defaultValue
+	}
+	v, err := strconv.Atoi(s)
+	if err != nil {
+		return defaultValue
+	}
+	return v
+}
+
 // ParseLineRanges parses line range strings into content.LineRange structs
 func ParseLineRanges(input []string) ([]content.LineRange, error) {
 	var result []content.LineRange
