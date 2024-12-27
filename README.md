@@ -128,6 +128,10 @@ For detailed documentation, examples, and guides, please visit our [Wiki](https:
 - [Configuration](https://github.com/watzon/goshot/wiki/Configuration) - Configuration options and customization
 - [Contributing](https://github.com/watzon/goshot/wiki/Contributing) - Guidelines for contributing
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=watzon/goshot&type=Date)](https://star-history.com/#watzon/goshot&Date)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
