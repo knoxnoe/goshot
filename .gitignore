@@ -8,7 +8,7 @@
 *.log
 /dist/
 /build/
-goshot
+/goshot
 
 # Vendor files
 vendor/

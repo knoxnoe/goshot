@@ -14,11 +14,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
 	"github.com/charmbracelet/x/xpty"
-	"github.com/watzon/goshot/pkg/background"
-	"github.com/watzon/goshot/pkg/chrome"
-	content_term "github.com/watzon/goshot/pkg/content/term"
-	"github.com/watzon/goshot/pkg/fonts"
-	"github.com/watzon/goshot/pkg/render"
+	"github.com/watzon/goshot/background"
+	"github.com/watzon/goshot/chrome"
+	content_term "github.com/watzon/goshot/content/term"
+	"github.com/watzon/goshot/fonts"
+	"github.com/watzon/goshot/render"
 )
 
 var dirStyle = lipgloss.NewStyle().

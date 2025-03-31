@@ -6,10 +6,10 @@ import (
 	"log"
 	"os"
 
-	"github.com/watzon/goshot/pkg/background"
-	"github.com/watzon/goshot/pkg/chrome"
-	"github.com/watzon/goshot/pkg/content/code"
-	"github.com/watzon/goshot/pkg/render"
+	"github.com/watzon/goshot/background"
+	"github.com/watzon/goshot/chrome"
+	"github.com/watzon/goshot/content/code"
+	"github.com/watzon/goshot/render"
 )
 
 func main() {
@@ -35,31 +35,60 @@ func worker(id int, jobs <-chan int, results chan<- int) {
 }`
 
 	// Create an image background
-	bg := background.NewImageBackground(img).
+	// Create the content renderer once to reuse
+	content := code.DefaultRenderer(input).
+		WithLanguage("go").
+		WithTheme("dracula").
+		WithTabWidth(4).
+		WithLineNumbers(true)
+
+	// Create image backgrounds with different blur effects
+	noBlur := background.NewImageBackground(img).
 		WithScaleMode(background.ImageScaleTile).
-		WithBlurRadius(0.5).
 		WithOpacity(1.0).
 		WithPadding(40).
 		WithCornerRadius(10)
 
-	canvas := render.NewCanvas().
-		WithChrome(
-			chrome.NewMacChrome(
-				chrome.MacStyleSequoia,
-				chrome.WithTitle("Image Background Example"),
-			)).
-		WithBackground(bg).
-		WithContent(
-			code.DefaultRenderer(input).
-				WithLanguage("go").
-				WithTheme("dracula").
-				WithTabWidth(4).
-				WithLineNumbers(true),
-		)
+	gaussianBlur := background.NewImageBackground(img).
+		WithScaleMode(background.ImageScaleTile).
+		WithBlur(background.GaussianBlur, 3.0).
+		WithOpacity(1.0).
+		WithPadding(40).
+		WithCornerRadius(10)
 
+	pixelatedBlur := background.NewImageBackground(img).
+		WithScaleMode(background.ImageScaleTile).
+		WithBlur(background.PixelatedBlur, 8.0).
+		WithOpacity(1.0).
+		WithPadding(40).
+		WithCornerRadius(10)
+
+	// Create directory for output
 	os.MkdirAll("example_output", 0755)
-	err = canvas.SaveAsPNG("example_output/image_background.png")
-	if err != nil {
-		log.Fatal(err)
+
+	// Render each variant
+	backgrounds := []struct {
+		name       string
+		background background.Background
+	}{
+		{"no_blur", noBlur},
+		{"gaussian_blur", gaussianBlur},
+		{"pixelated_blur", pixelatedBlur},
+	}
+
+	for _, bg := range backgrounds {
+		canvas := render.NewCanvas().
+			WithChrome(
+				chrome.NewMacChrome(
+					chrome.MacStyleSequoia,
+					chrome.WithTitle("Image Background - "+bg.name),
+				)).
+			WithBackground(bg.background).
+			WithContent(content)
+
+		err = canvas.SaveAsPNG("example_output/image_background_" + bg.name + ".png")
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
 }

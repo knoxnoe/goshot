@@ -10,7 +10,6 @@ Goshot is a powerful Go library and CLI tool for creating beautiful screenshots 
     <img src=".github/example.png">
 </div>
 
-
 ## ✨ Features
 
 - 🎨 Beautiful syntax highlighting with multiple themes
@@ -40,6 +39,7 @@ go get github.com/watzon/goshot
 #### Package Managers
 
 ##### Arch Linux (AUR)
+
 ```bash
 # Using yay
 yay -S goshot-bin
@@ -49,6 +49,7 @@ paru -S goshot-bin
 ```
 
 ##### Ubuntu/Debian
+
 ```bash
 # Add the PPA
 sudo add-apt-repository ppa:watzon/goshot
@@ -69,9 +70,9 @@ import (
     "image/color"
     "log"
 
-    "github.com/watzon/goshot/pkg/background"
-    "github.com/watzon/goshot/pkg/chrome"
-    "github.com/watzon/goshot/pkg/render"
+    "github.com/watzon/goshot/background"
+    "github.com/watzon/goshot/chrome"
+    "github.com/watzon/goshot/render"
 )
 
 func main() {
@@ -126,6 +127,10 @@ For detailed documentation, examples, and guides, please visit our [Wiki](https:
 - [Library Usage](https://github.com/watzon/goshot/wiki/Library-Usage) - Library documentation and examples
 - [Configuration](https://github.com/watzon/goshot/wiki/Configuration) - Configuration options and customization
 - [Contributing](https://github.com/watzon/goshot/wiki/Contributing) - Guidelines for contributing
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=watzon/goshot&type=Date)](https://star-history.com/#watzon/goshot&Date)
 
 ## License
 

@@ -10,8 +10,10 @@
             "request": "launch",
             "mode": "auto",
             "cwd": "${workspaceFolder}",
-            "program": "${workspaceFolder}/cmd/examples/06_term/",
-            "args": []
+            "program": "${workspaceFolder}/cmd/goshot",
+            "args": [
+                "./Makefile"
+            ]
         }
     ]
 }

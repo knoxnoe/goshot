@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style name="ayu-dark">
+  <!-- Base colors -->
+  <entry type="Background" style="bg:#0F1419"/>
+  <entry type="Text" style="#E6E1CF"/>
+  <entry type="Error" style="#FF3333"/>
+  <entry type="LineHighlight" style="bg:#151A1F"/>
+  
+  <!-- Comments -->
+  <entry type="Comment" style="#5C6773 italic"/>
+  
+  <!-- Strings -->
+  <entry type="LiteralString" style="#B8CC52"/>
+  <entry type="LiteralStringDouble" style="#B8CC52"/>
+  <entry type="LiteralStringEscape" style="#95E6CB"/>
+  
+  <!-- Numbers -->
+  <entry type="LiteralNumber" style="#FFEE99"/>
+  
+  <!-- Keywords -->
+  <entry type="Keyword" style="#FF7733"/>
+  <entry type="KeywordConstant" style="#FFEE99"/>
+  <entry type="KeywordType" style="#36A3D9 italic"/>
+  
+  <!-- Names -->
+  <entry type="Name" style="#E6E1CF"/>
+  <entry type="NameAttribute" style="#FF7733"/>
+  <entry type="NameBuiltin" style="#36A3D9"/>
+  <entry type="NameBuiltinPseudo" style="#36A3D9"/>
+  <entry type="NameClass" style="#36A3D9"/>
+  <entry type="NameConstant" style="#FFEE99"/>
+  <entry type="NameDecorator" style="#E6B673"/>
+  <entry type="NameEntity" style="#E6B673"/>
+  <entry type="NameException" style="#FF3333"/>
+  <entry type="NameFunction" style="#FFB454"/>
+  <entry type="NameFunctionMagic" style="#FFB454"/>
+  <entry type="NameLabel" style="#E6E1CF"/>
+  <entry type="NameNamespace" style="#36A3D9"/>
+  <entry type="NameOther" style="#E6B673"/>
+  <entry type="NameTag" style="#36A3D9"/>
+  <entry type="NameVariable" style="#E6E1CF"/>
+  <entry type="NameVariableClass" style="#E6E1CF"/>
+  <entry type="NameVariableGlobal" style="#E6E1CF"/>
+  <entry type="NameVariableInstance" style="#E6E1CF italic"/>
+  <entry type="NameVariableMagic" style="#E6E1CF"/>
+  
+  <!-- Operators -->
+  <entry type="Operator" style="#E7C547"/>
+  <entry type="OperatorWord" style="#FF7733"/>
+  
+  <!-- Punctuation -->
+  <entry type="Punctuation" style="#E6E1CF"/>
+</style>
